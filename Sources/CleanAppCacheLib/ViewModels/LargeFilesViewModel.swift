@@ -474,7 +474,13 @@ public final class LargeFilesViewModel: ObservableObject {
                                  modified: file.modified, accessed: file.accessed,
                                  isDeletable: fm.isDeletableFile(atPath: file.path), snapshot: snapshot)
             }
-            return (ranked, timedOut.isSet || process.terminationStatus != 0 || paths.count > largeFileStatLimit)
+            // `find` exits 1 after a complete walk that met an unreadable
+            // folder, which without Full Disk Access is every walk of the home
+            // folder; that is the banner's message, not a cut-short list. Only
+            // a walk stopped early (the watchdog, a signal) or matches past the
+            // stat cap leave larger files out.
+            let stopped = timedOut.isSet || process.terminationReason == .uncaughtSignal
+            return (ranked, stopped || paths.count > largeFileStatLimit)
         } catch {
             return ([], true)
         }

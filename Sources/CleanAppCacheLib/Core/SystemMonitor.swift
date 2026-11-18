@@ -1210,7 +1210,17 @@ public final class SystemMonitor: @unchecked Sendable {
     /// Counts fresh listings; becomes `SystemSnapshot.processListID`.
     private var procListCount = 0
 
-    // Per-PID cumulative CPU time (ns) from the previous process sample, used to
+    /// Nanoseconds per unit of `ri_user_time` / `ri_system_time`. These fields
+    /// are Mach absolute-time ticks: 1 ns on Intel, 125/3 ns on Apple Silicon.
+    /// Reading them as nanoseconds there understates every process's CPU%
+    /// about 41.7-fold.
+    static let rusageTickNanoseconds: Double = {
+        var timebase = mach_timebase_info_data_t()
+        guard mach_timebase_info(&timebase) == KERN_SUCCESS, timebase.denom != 0 else { return 1 }
+        return Double(timebase.numer) / Double(timebase.denom)
+    }()
+
+    // Per-PID cumulative CPU time (Mach ticks) from the previous process sample, used to
     // compute %CPU as a delta. Rebuilt each sample so dead PIDs drop out (no leak,
     // and recycled PIDs can't inherit a stale baseline).
     private var prevProcCPU: [Int32: UInt64] = [:]
@@ -1260,11 +1270,11 @@ public final class SystemMonitor: @unchecked Sendable {
             }
             guard ok == 0 else { continue }
 
-            let cpuNs = usage.ri_user_time &+ usage.ri_system_time
-            newPrev[pid] = cpuNs
+            let cpuTicks = usage.ri_user_time &+ usage.ri_system_time
+            newPrev[pid] = cpuTicks
             var cpu = 0.0
-            if wall > 0, let prev = prevProcCPU[pid], cpuNs >= prev {
-                cpu = Double(cpuNs - prev) / (wall * 1_000_000_000) * 100
+            if wall > 0, let prev = prevProcCPU[pid], cpuTicks >= prev {
+                cpu = Double(cpuTicks - prev) * Self.rusageTickNanoseconds / (wall * 1_000_000_000) * 100
             }
             raws.append(Raw(pid: pid, cpu: cpu, mem: usage.ri_phys_footprint))
         }

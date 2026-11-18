@@ -44,9 +44,12 @@ public final class MonitorAlerts {
         let loc = Localizer.shared
 
         // CPU: sustained load for ≥3 ticks (~15 s) — ignores momentary spikes.
+        // Every tick past the streak asks to post and the cooldown drops the
+        // repeats. Posting only on the tick the streak reaches 3 lost a long
+        // episode whose third tick fell inside an earlier episode's cooldown.
         if cpuOn, cpu >= cpuThreshold {
             cpuStreak += 1
-            if cpuStreak == 3 {
+            if cpuStreak >= 3 {
                 NotificationManager.shared.post(
                     id: "com.cleanappcache.alert.cpu",
                     title: loc.s("alert.cpu.title"),
@@ -60,7 +63,7 @@ public final class MonitorAlerts {
         // Temperature: 2 consecutive ticks over the limit.
         if tempOn, let t = cpuTemp, t >= tempThreshold {
             tempStreak += 1
-            if tempStreak == 2 {
+            if tempStreak >= 2 {
                 NotificationManager.shared.post(
                     id: "com.cleanappcache.alert.temp",
                     title: loc.s("alert.temp.title"),

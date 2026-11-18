@@ -6,6 +6,19 @@ GitHub Release description (`v1.0.0` and `v1.0` both match `## 1.0`).
 
 ## Unreleased
 
+### Fixed
+
+- Monitor: per-process CPU usage on Apple Silicon was about 40 times too low.
+- CPU and temperature alerts now repeat after their 30-minute pause while the
+  condition lasts, instead of staying silent for the rest of a long episode.
+- Startup: turning an agent on or off no longer rewrites its plist; only the
+  launchd override changes. Reading and removing login items no longer freezes
+  the window while System Events starts or asks for permission.
+- Uninstaller: data of another app whose bundle id extends the removed one's
+  stays when that app lives outside the Applications folders.
+- Large Files: a complete search no longer reports that it was cut short
+  because some folders were unreadable.
+
 ## 0.9.0 — 2026-11-18
 
 First public release, a beta. The DMG is not notarized yet; see the README for

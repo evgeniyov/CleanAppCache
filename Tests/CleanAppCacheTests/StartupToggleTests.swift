@@ -1,10 +1,9 @@
 import XCTest
 @testable import CleanAppCacheLib
 
-/// Turning a startup agent off writes a plist key and a launchd override; both
-/// must agree, and a failed override must leave the plist as it was. A
-/// recording stand-in replaces `launchctl`, so nothing here touches the real
-/// launchd override database.
+/// Turning a startup agent off writes only a launchd override; the agent's
+/// plist is never rewritten. A recording stand-in replaces `launchctl`, so
+/// nothing here touches the real launchd override database.
 final class StartupToggleTests: XCTestCase {
     private let fm = FileManager.default
     private var root: URL!
@@ -45,32 +44,31 @@ final class StartupToggleTests: XCTestCase {
         return try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
     }
 
-    func testTurningAUserAgentOffMarksThePlistWritesTheOverrideAndBootsItOut() async throws {
+    func testTurningAUserAgentOffWritesTheOverrideBootsItOutAndLeavesThePlist() async throws {
         let item = try agent()
+        let before = try Data(contentsOf: item.plistURL)
         let launchctl = Recorder()
 
         let ok = await StartupManager.shared.setEnabled(false, for: item, launchctl: launchctl.run)
 
         XCTAssertTrue(ok)
-        let written = try plist(item)
-        XCTAssertEqual(written["Disabled"] as? Bool, true)
-        XCTAssertEqual(written["Label"] as? String, "com.cacfixture.agent", "other keys are kept")
+        XCTAssertEqual(try Data(contentsOf: item.plistURL), before, "the vendor's plist is not rewritten")
         XCTAssertEqual(launchctl.calls, [["disable", "gui/\(getuid())/com.cacfixture.agent"],
                                          ["bootout", "gui/\(getuid())", item.plistURL.path]])
     }
 
-    func testTurningAUserAgentBackOnRemovesTheKeyAndBootstrapsIt() async throws {
+    func testTurningAUserAgentBackOnEnablesTheOverrideAndBootstrapsIt() async throws {
         let item = try agent(disabled: true)
         let launchctl = Recorder()
 
         let ok = await StartupManager.shared.setEnabled(true, for: item, launchctl: launchctl.run)
 
         XCTAssertTrue(ok)
-        XCTAssertNil(try plist(item)["Disabled"])
+        XCTAssertEqual(try plist(item)["Disabled"] as? Bool, true, "the override, not the plist, decides")
         XCTAssertEqual(launchctl.calls.map { $0[0] }, ["enable", "bootstrap"])
     }
 
-    func testFailedOverrideRollsThePlistBackAndReportsFailure() async throws {
+    func testFailedOverrideReportsFailureAndLeavesThePlist() async throws {
         let item = try agent()
         let before = try Data(contentsOf: item.plistURL)
         let launchctl = Recorder()
@@ -79,7 +77,7 @@ final class StartupToggleTests: XCTestCase {
         let ok = await StartupManager.shared.setEnabled(false, for: item, launchctl: launchctl.run)
 
         XCTAssertFalse(ok)
-        XCTAssertEqual(try Data(contentsOf: item.plistURL), before, "the plist must not claim a state launchd lacks")
+        XCTAssertEqual(try Data(contentsOf: item.plistURL), before)
         XCTAssertEqual(launchctl.calls.map { $0[0] }, ["disable"], "a failed override stops before bootout")
     }
 
@@ -91,10 +89,10 @@ final class StartupToggleTests: XCTestCase {
         let ok = await StartupManager.shared.setEnabled(false, for: item, launchctl: launchctl.run)
 
         XCTAssertTrue(ok)
-        XCTAssertEqual(try plist(item)["Disabled"] as? Bool, true)
+        XCTAssertEqual(launchctl.calls.map { $0[0] }, ["disable", "bootout"])
     }
 
-    func testGlobalAgentPlistBelongsToRootAndStaysUntouched() async throws {
+    func testGlobalAgentPlistStaysUntouched() async throws {
         let item = try agent(scope: .globalAgent)
         let before = try Data(contentsOf: item.plistURL)
         let launchctl = Recorder()
@@ -150,5 +148,15 @@ final class StartupToggleTests: XCTestCase {
 
         XCTAssertTrue(result.disabled.isEmpty)
         XCTAssertEqual(result.outcome, .failed, "no dialog may open when nothing qualifies")
+    }
+
+    // MARK: - Login items
+
+    func testLoginItemLinesParseNamesAndPathsAndSkipBlanks() {
+        let items = StartupManager.parseLoginItems("Editor\t/Applications/Editor.app/\n\t\n\t/Applications/Tool.app\n")
+
+        XCTAssertEqual(items.map(\.label), ["Editor", "Tool.app"])
+        XCTAssertEqual(items.map(\.program), ["/Applications/Editor.app/", "/Applications/Tool.app"])
+        XCTAssertTrue(items.allSatisfy { $0.scope == .loginItem })
     }
 }

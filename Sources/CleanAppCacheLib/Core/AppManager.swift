@@ -211,33 +211,14 @@ public actor AppManager {
            Date().timeIntervalSince(cached.at) < Self.bundleIDCacheTTL {
             return cached.ids
         }
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-        let roots = [
-            URL(fileURLWithPath: "/Applications"),
-            URL(fileURLWithPath: "/Applications/Utilities"),
-            URL(fileURLWithPath: "/System/Applications"),
-            URL(fileURLWithPath: "/System/Applications/Utilities"),
-            home.appendingPathComponent("Applications")
-        ]
         var ids: Set<String> = []
-        func walk(_ dir: URL, depth: Int) {
-            guard let contents = try? fm.contentsOfDirectory(
-                at: dir, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
-            for url in contents {
-                if url.pathExtension.lowercased() == "app" {
-                    let info = url.appendingPathComponent("Contents/Info.plist")
-                    if let plist = NSDictionary(contentsOf: info),
-                       let bid = plist["CFBundleIdentifier"] as? String {
-                        ids.insert(bid.lowercased())
-                    }
-                } else if depth > 0,
-                          (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    walk(url, depth: depth - 1)
-                }
+        for url in Self.appBundles(in: Self.appRoots(includingSystem: true)) {
+            let info = url.appendingPathComponent("Contents/Info.plist")
+            if let plist = NSDictionary(contentsOf: info),
+               let bid = plist["CFBundleIdentifier"] as? String {
+                ids.insert(bid.lowercased())
             }
         }
-        for root in roots where fm.fileExists(atPath: root.path) { walk(root, depth: 1) }
         cachedBundleIDs = (ids, Date())
         return ids
     }
@@ -280,50 +261,31 @@ public actor AppManager {
             return cached.inventory
         }
         let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-        let roots = [
-            URL(fileURLWithPath: "/Applications"),
-            URL(fileURLWithPath: "/Applications/Utilities"),
-            URL(fileURLWithPath: "/System/Applications"),
-            URL(fileURLWithPath: "/System/Applications/Utilities"),
-            home.appendingPathComponent("Applications")
-        ]
         var ids: Set<String> = []
         var names: Set<String> = []
 
-        func record(bundle url: URL) {
-            let info = NSDictionary(contentsOf: url.appendingPathComponent("Contents/Info.plist"))
+        func infoPlist(of url: URL) -> NSDictionary? {
+            NSDictionary(contentsOf: url.appendingPathComponent("Contents/Info.plist"))
                 ?? NSDictionary(contentsOf: url.appendingPathComponent("Info.plist"))
-            if let id = info?["CFBundleIdentifier"] as? String { ids.insert(id.lowercased()) }
         }
-        func walk(_ dir: URL, depth: Int) {
-            guard let contents = try? fm.contentsOfDirectory(
-                at: dir, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
-            for url in contents {
-                if url.pathExtension.lowercased() == "app" {
-                    record(bundle: url)
-                    names.insert(url.deletingPathExtension().lastPathComponent.lowercased())
-                    let info = NSDictionary(contentsOf: url.appendingPathComponent("Contents/Info.plist"))
-                    if let name = info?["CFBundleName"] as? String { names.insert(name.lowercased()) }
-                    for sub in Self.embeddedBundleFolders {
-                        let folder = url.appendingPathComponent(sub)
-                        guard let embedded = try? fm.contentsOfDirectory(
-                            at: folder, includingPropertiesForKeys: nil) else { continue }
-                        for item in embedded {
-                            record(bundle: item)
-                            // Privileged helpers ship as bare binaries named by id.
-                            if sub == "Contents/Library/LaunchServices" {
-                                ids.insert(item.lastPathComponent.lowercased())
-                            }
-                        }
+        for url in Self.appBundles(in: Self.appRoots(includingSystem: true)) {
+            let info = infoPlist(of: url)
+            if let id = info?["CFBundleIdentifier"] as? String { ids.insert(id.lowercased()) }
+            names.insert(url.deletingPathExtension().lastPathComponent.lowercased())
+            if let name = info?["CFBundleName"] as? String { names.insert(name.lowercased()) }
+            for sub in Self.embeddedBundleFolders {
+                let folder = url.appendingPathComponent(sub)
+                guard let embedded = try? fm.contentsOfDirectory(
+                    at: folder, includingPropertiesForKeys: nil) else { continue }
+                for item in embedded {
+                    if let id = infoPlist(of: item)?["CFBundleIdentifier"] as? String { ids.insert(id.lowercased()) }
+                    // Privileged helpers ship as bare binaries named by id.
+                    if sub == "Contents/Library/LaunchServices" {
+                        ids.insert(item.lastPathComponent.lowercased())
                     }
-                } else if depth > 0,
-                          (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    walk(url, depth: depth - 1)
                 }
             }
         }
-        for root in roots where fm.fileExists(atPath: root.path) { walk(root, depth: 1) }
         ids.formUnion(await Self.runningBundleIDs())
 
         let inventory = InstalledInventory(
@@ -375,31 +337,46 @@ public actor AppManager {
     /// subfolders (e.g. /Applications/Setapp). System apps are deliberately
     /// excluded — the uninstaller must never offer to delete Safari, Mail, etc.
     private func discoverAppBundles() -> [URL] {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-        let roots = [
+        Self.appBundles(in: Self.appRoots(includingSystem: false))
+    }
+
+    /// Where installed apps live. The uninstaller lists only the user's
+    /// folders; ownership checks also count the system apps, whose data must
+    /// never be taken for another app's.
+    nonisolated static func appRoots(includingSystem: Bool) -> [URL] {
+        let user = [
             URL(fileURLWithPath: "/Applications"),
             URL(fileURLWithPath: "/Applications/Utilities"),
-            home.appendingPathComponent("Applications")
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
         ]
-        var result: [URL] = []
+        guard includingSystem else { return user }
+        return user + [
+            URL(fileURLWithPath: "/System/Applications"),
+            URL(fileURLWithPath: "/System/Applications/Utilities")
+        ]
+    }
+
+    /// Every `.app` directly in `roots` or one folder below (a vendor folder
+    /// such as /Applications/Setapp), each once. Discovery and the installed-id
+    /// sets share this walk so they cannot disagree about what is installed.
+    nonisolated static func appBundles(in roots: [URL]) -> [URL] {
+        let fm = FileManager.default
         var seen: Set<String> = []
-        func addApps(in dir: URL, recurse: Bool) {
+        var bundles: [URL] = []
+        func walk(_ dir: URL, depth: Int) {
             guard let contents = try? fm.contentsOfDirectory(
                 at: dir, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
             for url in contents {
                 if url.pathExtension.lowercased() == "app" {
-                    if seen.insert(url.path).inserted { result.append(url) }
-                } else if recurse,
+                    if seen.insert(url.standardizedFileURL.path).inserted { bundles.append(url) }
+                } else if depth > 0,
                           (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    addApps(in: url, recurse: false)   // one level only
+                    walk(url, depth: depth - 1)
                 }
             }
         }
-        for root in roots where fm.fileExists(atPath: root.path) {
-            addApps(in: root, recurse: true)
-        }
-        return result
+        for root in roots where fm.fileExists(atPath: root.path) { walk(root, depth: 1) }
+        return bundles
     }
 
     /// Lists the `~/Library` locations where apps keep per-app data, once,
@@ -458,7 +435,7 @@ public actor AppManager {
         let name = url.deletingPathExtension().lastPathComponent
         let size = Scanner.shared.calculateSize(at: url)
         let associatedFiles = matchAssociatedFiles(
-            appName: name, bundleID: bundleID, index: index, installedIDs: installedIDs
+            appName: name, bundleID: bundleID, bundle: url, index: index, installedIDs: installedIDs
         )
 
         // "Date added" is the closest proxy for when the app was installed;
@@ -519,15 +496,47 @@ public actor AppManager {
     /// that `name` equals or extends. `com.acme.app.helper` is owned by
     /// `com.acme.app`; `com.acme.apple` is owned by nothing just because
     /// `com.acme.app` exists.
-    nonisolated static func owningBundleID(of name: String, installed: Set<String>) -> String? {
-        if installed.contains(name) { return name }
+    ///
+    /// `applicationExists` adds apps the folder walk does not see: one run
+    /// from Downloads or an external disk still owns the data named after it.
+    nonisolated static func owningBundleID(of name: String, installed: Set<String>,
+                                           applicationExists: (String) -> Bool = { _ in false }) -> String? {
+        if installed.contains(name) || applicationExists(name) { return name }
         var prefix = name
         while let dot = prefix.lastIndex(of: ".") {
             prefix = String(prefix[prefix.startIndex..<dot])
             guard prefix.contains(".") else { return nil }
-            if installed.contains(prefix) { return prefix }
+            if installed.contains(prefix) || applicationExists(prefix) { return prefix }
         }
         return nil
+    }
+
+    /// Whether `name` belongs to an app other than `bundleID`, either one the
+    /// folder walk installed or one LaunchServices knows elsewhere. The
+    /// uninstaller checks this before taking a `<bundleID>.`-prefixed entry:
+    /// `com.acme.app.pro` run from Downloads keeps its data when `com.acme.app`
+    /// is removed.
+    nonisolated static func ownedByAnotherApp(_ name: String, bundleID: String, bundle: URL,
+                                              installed: Set<String>) -> Bool {
+        let owner = owningBundleID(of: name, installed: installed) { id in
+            id != bundleID && !registeredCopies(of: id, outside: bundle).isEmpty
+        }
+        return owner.map { $0 != bundleID } ?? false
+    }
+
+    /// Apps with `id` that LaunchServices knows, still on disk, outside
+    /// `bundle` (its own embedded helpers do not count as another app) and
+    /// outside the Trash.
+    nonisolated static func registeredCopies(of id: String, outside bundle: URL) -> [URL] {
+        let own = bundle.standardizedFileURL.path.lowercased()
+        let trash = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".Trash").path.lowercased()
+        return NSWorkspace.shared.urlsForApplications(withBundleIdentifier: id).filter { url in
+            let path = url.standardizedFileURL.path
+            return !PathGuard.isUnder(path.lowercased(), own)
+                && !PathGuard.isUnder(path.lowercased(), trash)
+                && FileManager.default.fileExists(atPath: path)
+        }
     }
 
     /// Group names do not prove exclusive ownership, even when they equal a bundle id.
@@ -558,6 +567,7 @@ public actor AppManager {
     private nonisolated static func matchAssociatedFiles(
         appName: String,
         bundleID: String?,
+        bundle: URL,
         index: [LibraryEntry],
         installedIDs: Set<String>
     ) -> [AssociatedFile] {
@@ -581,8 +591,8 @@ public actor AppManager {
                 // com.adobe.acrobat.reader's data with it. Whoever owns the
                 // longest matching installed id wins.
                 if match, entry.lowerName != bid,
-                   let owner = Self.owningBundleID(of: entry.lowerName, installed: installedIDs),
-                   owner != bid {
+                   Self.ownedByAnotherApp(entry.lowerName, bundleID: bid, bundle: bundle,
+                                          installed: installedIDs) {
                     match = false
                 }
             } else {
@@ -721,8 +731,7 @@ public actor AppManager {
                 guard Self.scriptOwnerMatches(file.url, bundleID: app.bundleIdentifier) else { return false }
                 guard let bid = app.bundleIdentifier?.lowercased() else { return true }
                 let name = Self.groupMatchName(file.url.lastPathComponent)
-                guard let owner = Self.owningBundleID(of: name, installed: currentIDs) else { return true }
-                return owner == bid
+                return !Self.ownedByAnotherApp(name, bundleID: bid, bundle: app.url, installed: currentIDs)
             }.map(\.url).filter { !RemovalCheck.isMissing($0) }
         }
 
@@ -883,15 +892,7 @@ public actor AppManager {
     /// are named after the shared bundle id.
     private nonisolated static func otherCopy(of app: InstalledApp) -> URL? {
         guard let bundleID = app.bundleIdentifier, !bundleID.isEmpty else { return nil }
-        let own = app.url.standardizedFileURL.path
-        let trash = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".Trash").path.lowercased()
-        return NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundleID).first { url in
-            let path = url.standardizedFileURL.path
-            return path != own
-                && !PathGuard.isUnder(path.lowercased(), trash)
-                && FileManager.default.fileExists(atPath: path)
-        }
+        return registeredCopies(of: bundleID, outside: app.url).first
     }
 
     nonisolated static func hasRunningComponent(in bundle: URL, paths: Set<String>) -> Bool {

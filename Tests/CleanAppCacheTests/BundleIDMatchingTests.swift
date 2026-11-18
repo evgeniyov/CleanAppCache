@@ -49,6 +49,23 @@ final class BundleIDMatchingTests: XCTestCase {
         )
     }
 
+    func testAppKnownOnlyToLaunchServicesOwnsItsData() {
+        // com.acme.app.pro runs from Downloads, outside the folders the walk
+        // sees; uninstalling com.acme.app must leave its data alone.
+        let installed: Set<String> = ["com.acme.app"]
+        let elsewhere: (String) -> Bool = { $0 == "com.acme.app.pro" }
+        XCTAssertEqual(
+            AppManager.owningBundleID(of: "com.acme.app.pro.savedstate", installed: installed,
+                                      applicationExists: elsewhere),
+            "com.acme.app.pro"
+        )
+        XCTAssertEqual(
+            AppManager.owningBundleID(of: "com.acme.app.helper", installed: installed,
+                                      applicationExists: elsewhere),
+            "com.acme.app"
+        )
+    }
+
     func testUnrelatedNamesHaveNoOwner() {
         let installed: Set<String> = ["com.acme.app"]
         XCTAssertNil(AppManager.owningBundleID(of: "com.other.thing", installed: installed))

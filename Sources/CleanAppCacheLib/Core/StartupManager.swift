@@ -147,45 +147,50 @@ public actor StartupManager {
 
     // MARK: Login items (System Events)
 
-    /// Enumerates the user's login items via AppleScript. Runs on the main
-    /// thread (NSAppleScript requirement). Returns `denied` when the Automation
-    /// permission was refused, so the UI can guide the user instead of silently
-    /// showing nothing.
-    @MainActor
-    static func fetchLoginItems() -> (items: [StartupItem], denied: Bool) {
+    /// Enumerates the user's login items through System Events. Returns
+    /// `denied` when the Automation permission was refused, so the UI can
+    /// guide the user instead of silently showing nothing.
+    ///
+    /// Runs in an `osascript` child off the main thread: the first request
+    /// raises the Automation consent prompt, and System Events can take
+    /// seconds to launch, which in-process `NSAppleScript` on the main actor
+    /// spent with the window frozen.
+    static func fetchLoginItems() async -> (items: [StartupItem], denied: Bool) {
         let source = """
-        tell application "System Events"
-            set output to ""
-            repeat with li in login items
-                set n to ""
-                set p to ""
-                try
-                    set n to name of li
-                end try
-                try
-                    set p to (path of li) as text
-                end try
-                set output to output & n & tab & p & linefeed
-            end repeat
-            return output
-        end tell
+        on run argv
+            tell application "System Events"
+                set output to ""
+                repeat with li in login items
+                    set n to ""
+                    set p to ""
+                    try
+                        set n to name of li
+                    end try
+                    try
+                        set p to (path of li) as text
+                    end try
+                    set output to output & n & tab & p & linefeed
+                end repeat
+                return output
+            end tell
+        end run
         """
-        guard let script = NSAppleScript(source: source) else { return ([], false) }
-        var errorInfo: NSDictionary?
-        let result = script.executeAndReturnError(&errorInfo)
-        if let errorInfo {
-            // -1743 = user hasn't allowed Automation control of System Events.
-            let code = (errorInfo[NSAppleScript.errorNumber] as? Int) ?? 0
-            let denied = (code == -1743 || code == -600)
-            if !denied {
-                Log.warn("Login items AppleScript failed: \(errorInfo)")
-            }
+        let output = await Task.detached(priority: .userInitiated) {
+            AppleScriptRunner.run(source, arguments: [], timeout: AppleScriptRunner.interactiveTimeout)
+        }.value
+        guard output.succeeded else {
+            // -1743: Automation control of System Events is not allowed.
+            let denied = output.automationDenied || output.errorNumber == -600
+            if !denied { Log.warn("Login items AppleScript failed: \(output.stderr)") }
             return ([], denied)
         }
+        return (parseLoginItems(output.stdout), false)
+    }
 
-        let text = result.stringValue ?? ""
+    /// One `name<TAB>path` line per login item, as the script above prints them.
+    static func parseLoginItems(_ text: String) -> [StartupItem] {
         var items: [StartupItem] = []
-        for line in text.split(separator: "\n") {
+        for line in text.split(whereSeparator: { $0.isNewline }) {
             let parts = line.components(separatedBy: "\t")
             guard let name = parts.first else { continue }
             let path = parts.count > 1 ? parts[1] : ""
@@ -201,20 +206,20 @@ public actor StartupManager {
                 runAtLoad: true,
                 isEnabled: true))
         }
-        return (items, false)
+        return items
     }
 
     /// Removes a login item by its System Events name. Returns true on success.
-    @MainActor
-    static func removeLoginItem(named name: String) -> Bool {
-        let escaped = name
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let source = "tell application \"System Events\" to delete (every login item whose name is \"\(escaped)\")"
-        guard let script = NSAppleScript(source: source) else { return false }
-        var errorInfo: NSDictionary?
-        script.executeAndReturnError(&errorInfo)
-        return errorInfo == nil
+    /// The name travels as `argv`, so no quoting can turn it into script code.
+    static func removeLoginItem(named name: String) async -> Bool {
+        let source = """
+        on run argv
+            tell application "System Events" to delete (every login item whose name is (item 1 of argv))
+        end run
+        """
+        return await Task.detached(priority: .userInitiated) {
+            AppleScriptRunner.run(source, arguments: [name], timeout: AppleScriptRunner.interactiveTimeout)
+        }.value.succeeded
     }
 
     public func removeLoginItem(_ item: StartupItem) async -> Bool {
@@ -223,12 +228,16 @@ public actor StartupManager {
 
     // MARK: Enable / Disable
 
-    /// Turns an agent on or off for this user.
-    /// - A user agent's plist gets the `Disabled` key (persistence across
-    ///   reboots). A global agent's plist belongs to root and stays as it is.
+    /// Turns an agent on or off for this user without changing any file.
     /// - launchd's per-user override is written, which decides the next login.
     /// - The job is booted in or out of the running session.
     /// - Returns `true` on success, `false` if anything fails.
+    ///
+    /// The agent's plist belongs to whoever installed it and stays byte for
+    /// byte as it was: its `Disabled` key is only the initial value, which the
+    /// override replaces, and rewriting a vendor's file (a binary plist turned
+    /// into XML, a new inode) is a change on disk the Startup screen promises
+    /// not to make.
     @discardableResult
     public func setEnabled(_ enabled: Bool, for item: StartupItem) async -> Bool {
         setEnabled(enabled, for: item, launchctl: { Self.runLaunchctl($0) })
@@ -240,54 +249,29 @@ public actor StartupManager {
     func setEnabled(_ enabled: Bool, for item: StartupItem,
                     launchctl: ([String]) -> String?) -> Bool {
         guard item.scope == .userAgent || item.scope == .globalAgent else { return false }
-
-        // 1. Read + modify the plist — only a user agent's is ours to write.
-        var original: Data?
-        if item.scope == .userAgent {
-            guard let data = try? Data(contentsOf: item.plistURL),
-                  var plist = try? PropertyListSerialization.propertyList(
-                      from: data, format: nil) as? [String: Any]
-            else { return false }
-
-            if enabled { plist.removeValue(forKey: "Disabled") }
-            else       { plist["Disabled"] = true }
-
-            guard let newData = try? PropertyListSerialization.data(
-                fromPropertyList: plist, format: .xml, options: 0)
-            else { return false }
-
-            do { try newData.write(to: item.plistURL, options: .atomic) }
-            catch { return false }
-            original = data
-        }
+        // `bootstrap` loads the job from this plist. One that cannot be read
+        // does not describe a job launchd can load, so nothing is changed.
+        guard let data = try? Data(contentsOf: item.plistURL),
+              (try? PropertyListSerialization.propertyList(from: data, format: nil)) is [String: Any]
+        else { return false }
 
         let domain = "gui/\(getuid())"
 
-        // 2. Write launchd's override for the label. This is the part that
-        //    actually decides whether the agent starts at login: an override
-        //    entry beats the plist key above, so writing only the plist left a
-        //    toggle that appeared to work and changed nothing on the next login.
-        //    Which is also why its failure must fail the whole call — an
-        //    existing override (System Settings writes them) would win over the
-        //    plist at next login while the row showed the opposite state.
+        // 1. Write launchd's override for the label. This is what decides
+        //    whether the agent starts at login; an existing override (System
+        //    Settings writes them) would otherwise win while the row showed the
+        //    opposite state, so its failure fails the whole call.
         //    `launchctl enable/disable` exits 0 even for unloaded labels, so
         //    the guard adds no false failures; nil means spawn failure,
         //    non-zero exit, or the watchdog killing a wedged launchd.
-        //    On failure the plist edit above is rolled back too: with no
-        //    override entry the plist key alone decides the next login, and
-        //    leaving the new key behind while reporting failure would invert
-        //    the same UI-vs-login mismatch this guard removes.
         guard launchctl([enabled ? "enable" : "disable",
                          "\(domain)/\(item.label)"]) != nil
-        else {
-            if let original { try? original.write(to: item.plistURL, options: .atomic) }
-            return false
-        }
+        else { return false }
 
-        // 3. Apply to the running session. `load`/`unload` are deprecated on
+        // 2. Apply to the running session. `load`/`unload` are deprecated on
         //    modern macOS; `bootstrap`/`bootout` into the per-user GUI domain are
-        //    the supported equivalents. Failure is non-fatal — steps 1 and 2
-        //    already persist the change across reboots.
+        //    the supported equivalents. Failure is non-fatal — step 1
+        //    already persists the change across reboots.
         _ = launchctl(enabled
             ? ["bootstrap", domain, item.plistURL.path]
             : ["bootout",   domain, item.plistURL.path])
