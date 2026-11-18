@@ -151,7 +151,7 @@ def local_identity_exists() -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build CleanAppCache.app and CleanAppCache.dmg")
-    parser.add_argument("--version", default=os.environ.get("VERSION", "0.9.0"))
+    parser.add_argument("--version", default=os.environ.get("VERSION", "0.9.1"))
     parser.add_argument("--build-number",
                         default=os.environ.get("BUILD_NUMBER", ""))
     parser.add_argument("--developer-id",

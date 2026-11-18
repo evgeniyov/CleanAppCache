@@ -6,6 +6,8 @@ GitHub Release description (`v1.0.0` and `v1.0` both match `## 1.0`).
 
 ## Unreleased
 
+## 0.9.1 — 2026-11-18
+
 ### Fixed
 
 - Monitor: per-process CPU usage on Apple Silicon was about 40 times too low.
