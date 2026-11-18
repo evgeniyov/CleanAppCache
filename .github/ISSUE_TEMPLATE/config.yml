@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security or data-loss report
+    url: https://github.com/evgeniyov/CleanAppCache/security/policy
+    about: Report security problems or unexpected deletions privately, not in a public issue.

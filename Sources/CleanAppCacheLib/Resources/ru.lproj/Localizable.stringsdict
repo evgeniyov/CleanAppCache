@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>plural.files</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d файл</string>
+			<key>few</key>
+			<string>%d файла</string>
+			<key>many</key>
+			<string>%d файлов</string>
+			<key>other</key>
+			<string>%d файлов</string>
+		</dict>
+	</dict>
+	<key>plural.folders</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d папка</string>
+			<key>few</key>
+			<string>%d папки</string>
+			<key>many</key>
+			<string>%d папок</string>
+			<key>other</key>
+			<string>%d папок</string>
+		</dict>
+	</dict>
+	<key>plural.items</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d пункт</string>
+			<key>few</key>
+			<string>%d пункта</string>
+			<key>many</key>
+			<string>%d пунктов</string>
+			<key>other</key>
+			<string>%d пунктов</string>
+		</dict>
+	</dict>
+	<key>plural.issues</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d замечание</string>
+			<key>few</key>
+			<string>%d замечания</string>
+			<key>many</key>
+			<string>%d замечаний</string>
+			<key>other</key>
+			<string>%d замечаний</string>
+		</dict>
+	</dict>
+	<key>plural.objects</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d объект</string>
+			<key>few</key>
+			<string>%d объекта</string>
+			<key>many</key>
+			<string>%d объектов</string>
+			<key>other</key>
+			<string>%d объектов</string>
+		</dict>
+	</dict>
+	<key>plural.categories</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d категория</string>
+			<key>few</key>
+			<string>%d категории</string>
+			<key>many</key>
+			<string>%d категорий</string>
+			<key>other</key>
+			<string>%d категорий</string>
+		</dict>
+	</dict>
+	<key>plural.cleanups</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d очистка</string>
+			<key>few</key>
+			<string>%d очистки</string>
+			<key>many</key>
+			<string>%d очисток</string>
+			<key>other</key>
+			<string>%d очисток</string>
+		</dict>
+	</dict>
+	<key>plural.apps</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d приложение</string>
+			<key>few</key>
+			<string>%d приложения</string>
+			<key>many</key>
+			<string>%d приложений</string>
+			<key>other</key>
+			<string>%d приложений</string>
+		</dict>
+	</dict>
+	<key>plural.appsGen</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d приложения</string>
+			<key>few</key>
+			<string>%d приложений</string>
+			<key>many</key>
+			<string>%d приложений</string>
+			<key>other</key>
+			<string>%d приложений</string>
+		</dict>
+	</dict>
+	<key>plural.copies</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d копия</string>
+			<key>few</key>
+			<string>%d копии</string>
+			<key>many</key>
+			<string>%d копий</string>
+			<key>other</key>
+			<string>%d копий</string>
+		</dict>
+	</dict>
+	<key>plural.photos</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d фотография</string>
+			<key>few</key>
+			<string>%d фотографии</string>
+			<key>many</key>
+			<string>%d фотографий</string>
+			<key>other</key>
+			<string>%d фотографий</string>
+		</dict>
+	</dict>
+	<key>plural.hours</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d час</string>
+			<key>few</key>
+			<string>%d часа</string>
+			<key>many</key>
+			<string>%d часов</string>
+			<key>other</key>
+			<string>%d часов</string>
+		</dict>
+	</dict>
+	<key>plural.days</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d день</string>
+			<key>few</key>
+			<string>%d дня</string>
+			<key>many</key>
+			<string>%d дней</string>
+			<key>other</key>
+			<string>%d дней</string>
+		</dict>
+	</dict>
+	<key>plural.cores</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d ядро</string>
+			<key>few</key>
+			<string>%d ядра</string>
+			<key>many</key>
+			<string>%d ядер</string>
+			<key>other</key>
+			<string>%d ядер</string>
+		</dict>
+	</dict>
+	<key>plural.snapshots</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d снапшот</string>
+			<key>few</key>
+			<string>%d снапшота</string>
+			<key>many</key>
+			<string>%d снапшотов</string>
+			<key>other</key>
+			<string>%d снапшотов</string>
+		</dict>
+	</dict>
+	<key>plural.cycles</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d цикл</string>
+			<key>few</key>
+			<string>%d цикла</string>
+			<key>many</key>
+			<string>%d циклов</string>
+			<key>other</key>
+			<string>%d циклов</string>
+		</dict>
+	</dict>
+	<key>plural.cleanupsWord</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>очистка</string>
+			<key>few</key>
+			<string>очистки</string>
+			<key>many</key>
+			<string>очисток</string>
+			<key>other</key>
+			<string>очисток</string>
+		</dict>
+	</dict>
+	<key>plural.objectsWord</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>объект</string>
+			<key>few</key>
+			<string>объекта</string>
+			<key>many</key>
+			<string>объектов</string>
+			<key>other</key>
+			<string>объектов</string>
+		</dict>
+	</dict>
+	<key>plural.groups</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d группа</string>
+			<key>few</key>
+			<string>%d группы</string>
+			<key>many</key>
+			<string>%d групп</string>
+			<key>other</key>
+			<string>%d групп</string>
+		</dict>
+	</dict>
+	<key>plural.protectedPaths</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d защищённый путь</string>
+			<key>few</key>
+			<string>%d защищённых пути</string>
+			<key>many</key>
+			<string>%d защищённых путей</string>
+			<key>other</key>
+			<string>%d защищённых путей</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

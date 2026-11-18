@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Not sandboxed: the whole point of the app is to survey and clean the
+      user's Library, caches and application bundles, which the sandbox
+      forbids. Keep this list minimal — every added key widens the blast
+      radius of a bug.
+    -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+
+    <!--
+      Required for NSAppleScript. Under the hardened runtime (which the signed
+      builds enable) sending Apple events without this is blocked outright, so
+      the Startup / Login Items pane and the admin force-uninstall silently
+      stopped working in release builds while continuing to work in unsigned
+      local builds. Paired with NSAppleEventsUsageDescription in Info.plist.
+    -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+
+    <!--
+      Deliberately NOT present:
+      - com.apple.security.files.user-selected.read-write — sandbox-only, a
+        no-op here and misleading in an audit.
+      - com.apple.security.cs.disable-library-validation — would let unsigned
+        code load into the process. If `do shell script` ever fails under the
+        hardened runtime, prefer narrowing the AppleScript usage over adding
+        this.
+    -->
+</dict>
+</plist>

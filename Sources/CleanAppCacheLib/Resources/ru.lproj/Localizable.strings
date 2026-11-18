@@ -1,0 +1,1191 @@
+/* App */
+"app.name" = "CleanAppCache";
+
+/* Navigation */
+"nav.storage" = "Хранилище";
+"nav.monitor" = "Монитор";
+"nav.startup" = "Автозагрузка";
+"nav.leftovers" = "Остатки";
+"section.system" = "Система";
+"section.cleanup" = "Очистка";
+"nav.largeFiles" = "Большие файлы";
+"nav.duplicates" = "Дубликаты";
+"nav.cleanup" = "Умная очистка";
+"nav.developer" = "Разработка";
+"nav.privacy" = "Приватность";
+"nav.systemJunk" = "Системный мусор";
+
+/* Common */
+"common.cancel" = "Отмена";
+"common.close" = "Закрыть";
+"common.back" = "Назад";
+"common.scan" = "Сканировать";
+"common.rescan" = "Пересканировать";
+"common.open" = "Открыть";
+"common.openInFinder" = "Открыть в Finder";
+"common.revealInFinder" = "Показать в Finder";
+"common.quickLook" = "Быстрый просмотр";
+"common.retry" = "Повторить";
+"common.deleteFmt" = "Удалить навсегда (%@)";
+"common.selectAll" = "Выбрать все";
+"common.clear" = "Очистить";
+
+/* Language */
+"settings.language" = "Язык";
+"settings.theme" = "Тема";
+"settings.title" = "Настройки";
+"settings.subtitle" = "Поведение приложения и виджета в строке меню";
+"settings.maintenance" = "Обслуживание";
+"settings.alerts" = "Алерты монитора";
+"settings.alerts.enable" = "Уведомлять о превышении порогов";
+"settings.alerts.desc" = "Работает вместе с сэмплером строки меню — даже когда это окно закрыто.";
+"settings.alerts.cpuFmt" = "CPU выше %d%%";
+"settings.alerts.tempFmt" = "Температура CPU выше %d°C";
+"settings.alerts.pressure" = "Критическое давление памяти";
+"alert.cpu.title" = "Высокая загрузка CPU";
+"alert.cpu.bodyFmt" = "CPU держится на %1$d%% (порог %2$d%%). Проверьте процессы в Мониторе.";
+"alert.temp.title" = "Высокая температура CPU";
+"alert.temp.bodyFmt" = "CPU нагрет до %1$d°C (порог %2$d°C).";
+"alert.pressure.title" = "Критическое давление памяти";
+"alert.pressure.body" = "Системе не хватает памяти, возможны подтормаживания. Закройте тяжёлые приложения.";
+"settings.resetCaches" = "Сбросить кэши";
+"settings.resetCaches.desc" = "Очищает сохранённые размеры папок и последний результат Умной очистки — следующее сканирование пересчитает всё заново, — а также журнал приложения, в котором перечислены удалённые файлы.";
+"settings.loginItemFailed" = "macOS не дала изменить автозапуск. Проверьте Системные настройки → Основные → Объекты входа.";
+"settings.resetCaches.done" = "Кэши очищены";
+"settings.resetCaches.failed" = "Не удалось удалить часть кэшей";
+"settings.openLogs" = "Открыть логи";
+"theme.dark" = "Тёмная";
+"theme.light" = "Светлая";
+"lang.system" = "Системный";
+"lang.en" = "Английский";
+"lang.ru" = "Русский";
+
+/* Full Disk Access */
+"fda.title" = "Дайте полный доступ к диску для точных результатов";
+"fda.subtitle" = "Без него часть кэшей и защищённых папок нельзя измерить или очистить.";
+"fda.openSettings" = "Открыть настройки";
+"fda.dismiss" = "Скрыть";
+
+/* Storage */
+"storage.title" = "Хранилище";
+"storage.analyzing" = "Анализ хранилища…";
+"storage.unableRead" = "Не удалось прочитать данные о диске";
+"storage.freeSegment" = "Свободно";
+
+/* Storage detail */
+"detail.contents" = "Содержимое";
+"detail.search" = "Поиск…";
+"detail.openFolder" = "Открыть папку";
+"detail.scanning" = "Сканирование содержимого…";
+"detail.noItems" = "Ничего не найдено";
+"detail.foldersOnly" = "Только папки";
+"detail.systemData" = "Системные данные";
+"detail.tapToInspect" = "Нажмите на элемент для деталей";
+"detail.modified" = "Изменён";
+"detail.created" = "Создан";
+"detail.lastOpened" = "Открывался";
+"detail.drillDown" = "Открыть";
+"sort.sizeDesc" = "Размер: по убыванию";
+"sort.sizeAsc" = "Размер: по возрастанию";
+"sort.nameAsc" = "Имя: А–Я";
+"sort.nameDesc" = "Имя: Я–А";
+
+/* Large files */
+"large.title" = "Большие файлы";
+"large.scanning" = "Поиск больших файлов…";
+"large.idle" = "Просканируйте домашнюю папку или диск на большие файлы";
+"large.ageNote" = "Приблизительно: по дате последнего доступа/изменения, которую macOS обновляет не всегда.";
+
+/* Duplicates */
+"dup.confirmTitleFmt" = "Переместить %@ в Корзину?";
+"dup.confirmMsg" = "В каждой группе остаётся проверенная копия. Остальные уйдут в Корзину — их можно вернуть. Изменённые или защищённые файлы пропускаются для ручной проверки.";
+"dup.confirmBytesFmt" = "В Корзину уйдёт %@.";
+"dup.keepNewest" = "Оставить самую новую копию";
+"dup.keepOldest" = "Оставить самую старую (обычно оригинал)";
+"dup.keepsFmt" = "Самая новая копия остаётся: %@";
+"dscope.home" = "Дом";
+"dscope.downloads" = "Загрузки";
+"dscope.documents" = "Документы";
+"dscope.desktop" = "Рабочий стол";
+
+/* Smart cleanup */
+"cleanup.title" = "Умная очистка";
+"cleanup.confirmTitleFmt" = "Очистить %@?";
+"cleanup.confirmMsgDefault" = "Эти элементы можно вернуть, пока Корзина не очищена.";
+"cleanup.confirmAdminNote" = "Для некоторых элементов macOS может запросить пароль администратора.";
+"cleanup.confirmMoveToTrash" = "Переместить в Корзину";
+"cleanup.confirmPermanent" = "Удалить безвозвратно";
+"cleanup.adminPrompt" = "CleanAppCache хочет безвозвратно удалить из Корзины объекты, принадлежащие системе.";
+"cleanup.skippedLiveFmt" = "Пропущено %@: ими сейчас пользуются";
+"cleanup.alreadyGoneFmt" = "К моменту проверки уже отсутствовало %@.";
+"cleanup.cleanFmt" = "Очистить %@";
+
+/* Scan categories */
+"cat.systemCache" = "Системный кэш";
+"cat.userCache" = "Кэш приложений";
+"cat.browser" = "Кэш браузеров";
+"cat.logs" = "Логи";
+"cat.trash" = "Корзина";
+"cat.tempFiles" = "Временные файлы";
+"cat.installers" = "Инсталляторы";
+
+/* Cleanup history */
+"history.title" = "История очисток";
+"history.show" = "История";
+"history.clear" = "Очистить историю";
+"history.source.smartCleanup" = "Умная очистка";
+"history.source.systemJunk" = "Системный мусор";
+"history.source.leftovers" = "Остатки";
+"history.source.largeFiles" = "Большие файлы";
+"history.source.duplicates" = "Дубликаты";
+"history.source.developer" = "Разработка";
+"history.source.uninstaller" = "Деинсталлятор";
+"history.source.trash" = "Корзина";
+"history.source.orphans" = "Осиротевшие";
+
+/* Developer */
+"dev.title" = "Разработка";
+"dev.confirmMsg" = "Эти кэши разработчика будут удалены безвозвратно. Инструменты создадут их заново при следующей сборке или установке.";
+"dev.confirmOthersMsg" = "Остальные выбранные кэши тоже удаляются безвозвратно; инструменты создадут их заново при следующей сборке или установке.";
+"dev.confirmLossMsg" = "Удаляются безвозвратно. Эти данные сами не пересоздаются:";
+"dev.confirmLossLineFmt" = "• %1$@ — %2$@";
+"dev.caution" = "Рискованно";
+"dev.projectChangedFmt" = "Проект изменён %@";
+
+/* Developer: curated tool locations. Keys are dev.item.<definition id>.*;
+   `loss` exists for the unsafe ones and follows the name in the confirmation. */
+"dev.item.derivedData.title" = "Xcode DerivedData";
+"dev.item.derivedData.detail" = "Промежуточные файлы сборки и индексы — Xcode создаст их заново";
+"dev.item.archives.title" = "Архивы Xcode";
+"dev.item.archives.detail" = "Архивы сборок приложений с отладочными символами — заново не создаются";
+"dev.item.archives.loss" = "архивы сборок и их отладочные символы пропадут; отчёты о сбоях уже выпущенных сборок больше не удастся символизировать";
+"dev.item.iosDeviceSupport.title" = "iOS DeviceSupport";
+"dev.item.iosDeviceSupport.detail" = "Отладочные символы для каждой версии iOS — копируются снова при подключении устройства";
+"dev.item.watchosDeviceSupport.title" = "watchOS DeviceSupport";
+"dev.item.watchosDeviceSupport.detail" = "Отладочные символы для каждой версии watchOS — копируются снова при подключении часов";
+"dev.item.simulatorCaches.title" = "Кэши симулятора";
+"dev.item.simulatorCaches.detail" = "Кэши CoreSimulator, включая кэши dyld — пересоздаются при запуске симулятора";
+"dev.item.swiftpm.title" = "Кэш SwiftPM";
+"dev.item.swiftpm.detail" = "Кэш загрузок Swift Package Manager";
+"dev.item.cocoapods.title" = "Кэш CocoaPods";
+"dev.item.cocoapods.detail" = "Скачанные спецификации и архивы подов";
+"dev.item.carthage.title" = "Кэш Carthage";
+"dev.item.carthage.detail" = "Кэш сборки Carthage";
+"dev.item.npm.title" = "Кэш npm";
+"dev.item.npm.detail" = "Кэш пакетов npm (~/.npm)";
+"dev.item.yarn.title" = "Кэш Yarn";
+"dev.item.yarn.detail" = "Кэш пакетов Yarn";
+"dev.item.pip.title" = "Кэш pip";
+"dev.item.pip.detail" = "Кэш загрузок Python pip";
+"dev.item.gradleCaches.title" = "Кэш Gradle";
+"dev.item.gradleCaches.detail" = "Кэш загрузок и сборки Gradle";
+"dev.item.gradleWrappers.title" = "Обёртки Gradle";
+"dev.item.gradleWrappers.detail" = "Скачанные дистрибутивы Gradle";
+"dev.item.maven.title" = "Репозиторий Maven";
+"dev.item.maven.detail" = "Скачанные и локально установленные артефакты Maven (~/.m2/repository)";
+"dev.item.maven.loss" = "У локально установленных артефактов может не быть копии для скачивания; автоматически восстановить их нельзя.";
+"dev.item.pubCache.title" = "Кэш Pub";
+"dev.item.pubCache.detail" = "Пакеты Dart и Flutter и глобально активированные инструменты";
+"dev.item.pubCache.loss" = "пакеты скачаются заново при следующей сборке, а для этого нужна сеть; глобально активированные инструменты Dart будут удалены";
+"dev.item.homebrew.title" = "Кэш Homebrew";
+"dev.item.homebrew.detail" = "Скачанные пакеты (bottles) и архивы исходников";
+"dev.item.goBuild.title" = "Кэш сборки Go";
+"dev.item.goBuild.detail" = "Кэш сборки компилятора Go";
+"dev.item.goModules.title" = "Модули Go";
+"dev.item.goModules.detail" = "Скачанные исходники модулей Go";
+"dev.item.goModules.loss" = "модули скачаются заново при следующей сборке, а для этого нужна сеть; версии, отозванные в источнике, не вернутся";
+"dev.item.cargoRegistry.title" = "Кэш реестра Cargo";
+"dev.item.cargoRegistry.detail" = "Кэш загрузок крейтов Rust";
+"dev.item.android.title" = "Кэш Android";
+"dev.item.android.detail" = "Кэш Android SDK";
+"dev.item.sdkman.title" = "Архивы SDKMAN";
+"dev.item.sdkman.detail" = "Скачанные архивы SDK";
+"dev.item.simulatorDevices.title" = "Устройства симулятора";
+"dev.item.simulatorDevices.detail" = "Все симуляторы с приложениями и данными";
+"dev.item.simulatorDevices.loss" = "все симуляторы будут сброшены: установленные приложения, их данные и настройки пропадут";
+"dev.item.docker.title" = "Образ диска Docker";
+"dev.item.docker.detail" = "Docker.raw — все контейнеры, образы и тома";
+"dev.item.docker.loss" = "все контейнеры, образы и тома удаляются и не вернутся";
+"dev.item.orbstack.title" = "Образ диска OrbStack";
+"dev.item.orbstack.detail" = "data.img — все контейнеры и машины OrbStack";
+"dev.item.orbstack.loss" = "все контейнеры и машины OrbStack вместе с их файлами удаляются и не вернутся";
+
+/* Uninstaller */
+"apps.title" = "Деинсталлятор";
+"apps.uninstalledFmt" = "«%@» удалено";
+"apps.stillRunningFmt" = "Не удалено — программа не закрылась: %@";
+"apps.stillRunningHint" = "Закройте её (возможно, она ждёт сохранения документа) и повторите.";
+"apps.adminCancelledFmt" = "Не удалено: %@";
+"apps.adminCancelledHint" = "Пароль администратора не введён — из этих программ ничего не удалено.";
+"apps.freedFmt" = "Освобождено примерно %@";
+"apps.search" = "Поиск приложений…";
+"apps.scanning" = "Сканирование приложений…";
+"apps.idle" = "Просканируйте установленные приложения и их остаточные файлы";
+"apps.versionFmt" = "Версия %@";
+"apps.associated" = "Связанные файлы";
+"apps.totalSize" = "Общий размер";
+"apps.confirmTitleFmt" = "Удалить %@?";
+"apps.confirmMsgFmt" = "Будут удалены безвозвратно: %1$@ и %2$@ приложения. Отменить это нельзя.";
+"apps.uninstall" = "Удалить";
+"apps.uninstallFmt" = "Удалить (%@)";
+"apps.installedFmt" = "Установлено %@";
+"apps.batchConfirmFmt" = "Удалить %@?";
+"apps.batchConfirmMsg" = "Программы и их остаточные файлы удалятся безвозвратно, минуя Корзину.";
+"apps.confirmAdminFmt" = "macOS запросит пароль администратора: без него ваша учётная запись не может удалить %@ (установлено пакетом или из App Store).";
+"apps.confirmQuitFmt" = "Запущенные программы сначала будут закрыты: %@.";
+"apps.confirmSharedFmt" = "Настройки и данные %@ останутся — ими пользуется другая копия программы.";
+"apps.adminPromptFmt" = "CleanAppCache хочет удалить %@.";
+"apps.batchDoneFmt" = "Удалено %1$@ · освобождено примерно %2$@";
+
+/* Orphaned background items */
+"nav.orphans" = "Осиротевшие";
+"orphan.remove" = "В Корзину";
+"orphan.confirmMsg" = "Приложение этого элемента удалено, от него ничего не должно зависеть. Можно восстановить из Корзины.";
+"orphan.confirmAdminFmt" = "%@ в /Library — Finder спросит пароль администратора. Удалённые задания перестанут запускаться после перезагрузки.";
+"orphan.scope.userAgent" = "Агент пользователя";
+"orphan.scope.globalAgent" = "Глобальный агент";
+"orphan.scope.daemon" = "Демон";
+"orphan.scope.helper" = "Привилегированный хелпер";
+"orphan.reason.binaryMissing" = "Запускаемая программа больше не существует";
+"orphan.reason.appMissing" = "Его приложение удалено";
+
+/* Developer: project artifacts */
+"dev.mode.caches" = "Кэши";
+"dev.mode.projects" = "Проекты";
+"dev.projects.confirmMsg" = "Артефакты удаляются безвозвратно. Они пересоздаются при следующей сборке (npm install, cargo build, swift build).";
+"dev.kind.node" = "node_modules";
+"dev.kind.cargo" = "Rust target";
+"dev.kind.swiftpm" = "SwiftPM .build";
+
+/* Storage breakdown category names */
+"bk.Applications" = "Приложения";
+"bk.User Apps" = "Приложения пользователя";
+"bk.Documents" = "Документы";
+"bk.Downloads" = "Загрузки";
+"bk.Desktop" = "Рабочий стол";
+"bk.User Caches" = "Кэш пользователя";
+"bk.User Logs" = "Логи пользователя";
+"bk.Movies" = "Фильмы";
+"bk.Music" = "Музыка";
+"bk.Pictures" = "Изображения";
+"bk.Other" = "Вне измеренных папок";
+
+/* Startup */
+"startup.runAtLoad" = "При входе";
+"startup.disabled" = "Отключено";
+"startup.automationHint" = "Чтобы видеть все элементы входа, разрешите CleanAppCache управлять System Events. Часть приложений (Shottr, Bitrix, …) регистрируются здесь, а не как launchd-агенты.";
+
+/* Leftovers */
+"leftovers.loc.prefs" = "Настройки";
+"leftovers.loc.caches" = "Кэш";
+"leftovers.loc.appSupport" = "Application Support";
+"leftovers.loc.containers" = "Контейнеры";
+"leftovers.loc.savedState" = "Сохранённое состояние";
+"leftovers.loc.httpStorages" = "HTTP-данные";
+"leftovers.loc.webKit" = "WebKit";
+
+/* Footer */
+"menubar.open" = "Открыть приложение";
+"menubar.quit" = "Выйти";
+"menubar.showInBar" = "Показывать в строке меню";
+"menubar.metric.cpuLoad" = "Нагрузка ЦП";
+"menubar.metric.memLoad" = "Память";
+"menubar.metric.gpuLoad" = "Нагрузка ГП";
+"menubar.metric.cpuTemp" = "Температура ЦП";
+"menubar.metric.gpuTemp" = "Температура ГП";
+"menubar.gpuTempUnavailable" = "На этом Mac нет датчика температуры GPU";
+
+/* Monitor */
+"monitor.title" = "Монитор системы";
+"monitor.starting" = "Запуск мониторинга…";
+"monitor.cpu" = "Процессор";
+"monitor.ram" = "Память";
+"monitor.gpu" = "Графика";
+"monitor.network" = "Сеть";
+"monitor.disk" = "Диск I/O";
+"monitor.battery" = "Батарея";
+"monitor.ofTotal" = "из %@";
+"monitor.pressureNormal" = "Норма";
+"monitor.pressureWarning" = "Нагрузка";
+"monitor.pressureCritical" = "Критично";
+"monitor.uptimeFmt" = "работает %@";
+"monitor.processes" = "Процессы";
+"monitor.thermal.nominal" = "Норма";
+"monitor.thermal.fair" = "Тёплый";
+"monitor.thermal.hot" = "Горячий";
+"monitor.thermal.serious" = "Троттлинг";
+"monitor.thermal.critical" = "Перегрев";
+"monitor.thermal.unavailable" = "Недоступно";
+"monitor.axisNow" = "сейчас";
+"monitor.killConfirmFmt" = "Завершить процесс «%@»?";
+"monitor.killAction" = "Завершить";
+"monitor.killedFmt" = "Процесс «%@» завершён";
+"monitor.killFailedFmt" = "Не удалось завершить «%@»";
+"monitor.killPendingFmt" = "«%@» получил команду завершиться, но ещё работает";
+"monitor.killPendingHint" = "Возможно, он спрашивает о несохранённых документах в своём окне.";
+"monitor.freqP" = "P-ядра";
+"monitor.freqE" = "E-ядра";
+"monitor.mhz" = "МГц";
+
+/* Toasts */
+"toast.deleted" = "Удалено";
+"toast.deletedFmt" = "Удалено: %1$@ · освобождено примерно %2$@";
+"toast.deleteFailedFmt" = "Не удалось удалить: %d";
+"trash.undo" = "Отменить";
+"trash.movedFmt" = "В Корзину: %1$d · %2$@";
+"trash.restoredFmt" = "Восстановлено: %d";
+"trash.failedFmt" = "Не удалось переместить: %d";
+"trash.viaFinderFmt" = "Finder переместил по паролю: %@ — вернуть можно из Корзины командой «Вернуть».";
+"removal.needsAdminFmt" = "Нужен пароль администратора: %@";
+"removal.needsAdminHint" = "У вашей учётной записи нет прав на эту папку. Удалите их в Finder — он спросит пароль.";
+"removal.adminCancelledFmt" = "Не удалено: %@ — пароль не введён";
+"removal.automationDenied" = "CleanAppCache не может управлять Finder";
+"removal.automationHint" = "Защищённые объекты отправляются в Корзину через Finder. Разрешите это в Системных настройках → Конфиденциальность и безопасность → Автоматизация и повторите.";
+"removal.privacyFmt" = "macOS не дала доступ: %@";
+"removal.fdaHint" = "Данные других программ закрыты полным доступом к диску. Разрешите его CleanAppCache в Системных настройках и повторите.";
+"removal.appManagementHint" = "macOS не даёт программам менять другие программы. Разрешите CleanAppCache «Управление приложениями» в Системных настройках и повторите.";
+"removal.openSettings" = "Открыть настройки";
+"removal.systemFmt" = "Защищено macOS: %@";
+"removal.systemHint" = "Их охраняет защита целостности системы: удалить их нельзя, и чистить их не нужно.";
+"removal.lockedFmt" = "Заблокировано: %@";
+"removal.lockedHint" = "Снимите флажок «Защита» в окне «Свойства» и повторите.";
+"removal.inUseFmt" = "Используется: %@";
+"removal.inUseHint" = "Их держит открытыми другая программа. Закройте её и повторите.";
+"trash.nothingRestored" = "Не удалось восстановить";
+
+/* Login Items */
+"loginitems.launchTitle" = "Запускать CleanAppCache при входе";
+"loginitems.launchSubtitle" = "Приложение будет стартовать автоматически при входе в систему";
+"loginitems.status.enabled" = "Включён — CleanAppCache будет запускаться при входе";
+"loginitems.status.requiresApproval" = "Ожидает разрешения — откройте Системные настройки";
+"loginitems.status.notRegistered" = "Не включён";
+"loginitems.status.notFound" = "Не найден — возможно, приложение нужно переустановить";
+"loginitems.status.translocated" = "Приложение запущено из образа диска — перенесите CleanAppCache в «Программы» и запустите заново";
+
+/* Privacy */
+"privacy.idleMessage" = "Определяет историю, cookies и данные сайтов Safari, Chrome, Firefox, Brave и Arc.";
+"privacy.running" = "Запущен";
+"privacy.clearedFmt" = "Данные %@ удалены";
+"privacy.freedFmt" = "Освобождено примерно %@";
+"privacy.failedFmt" = "Не удалось очистить данные %@";
+
+/* System Junk */
+"systemJunk.title" = "Системный мусор";
+"systemJunk.subtitle" = "Артефакты сборки, логи, резервные копии и незавершённые загрузки";
+"systemJunk.confirmMsg" = "Выбранные элементы будут перемещены в Корзину.";
+
+"systemJunk.xcodeDerivedData.title" = "Xcode DerivedData";
+"systemJunk.xcodeDerivedData.desc" = "Артефакты сборки и индексы каждого проекта";
+"systemJunk.xcodeArchives.title" = "Архивы Xcode";
+"systemJunk.xcodeArchives.desc" = "Архивы приложений, созданные для дистрибуции";
+"systemJunk.xcodeDeviceLogs.title" = "Логи iOS-устройств";
+"systemJunk.xcodeDeviceLogs.desc" = "Логи сбоев и диагностики подключённых устройств";
+"systemJunk.iOSBackups.title" = "Резервные копии iOS";
+"systemJunk.iOSBackups.desc" = "Копии iPhone и iPad, созданные через Finder";
+"systemJunk.quickLookCache.title" = "Кэш Quick Look";
+"systemJunk.quickLookCache.desc" = "Миниатюры предпросмотра, сгенерированные macOS";
+"systemJunk.mailDownloads.title" = "Загрузки Почты";
+"systemJunk.mailDownloads.desc" = "Вложения, сохранённые приложением Почта";
+"systemJunk.brokenDownloads.title" = "Незавершённые загрузки";
+"systemJunk.brokenDownloads.desc" = "Неполные файлы .crdownload и .part";
+
+/* Notifications */
+"notification.lowDisk.title" = "Мало места на диске";
+"notification.lowDisk.body" = "Свободно только %1$d%% (%2$@). Откройте CleanAppCache для освобождения места.";
+
+/* Onboarding */
+"onboard.fda" = "Выдать Full Disk Access";
+"onboard.start" = "Начать";
+
+/* System Data */
+"nav.systemData" = "Сист. данные";
+"sysdata.title" = "Системные данные: разбор";
+"sysdata.scanning" = "Измеряю скрытое системное хранилище…";
+"sysdata.idle" = "Узнайте, из чего состоят «Системные данные»";
+"sysdata.sizeHidden" = "скрыто";
+"sysdata.purgeable.title" = "Освобождаемое место";
+"sysdata.purgeable.desc" = "Место, которое macOS освобождает автоматически при необходимости — кэши и снапшоты. Finder уже считает его доступным.";
+"sysdata.snapshots.title" = "Локальные снапшоты Time Machine";
+"sysdata.snapshots.desc" = "Ежечасные резервные копии на диске. Они удерживают блоки удалённых файлов — причина №1, почему удаление не освобождает место.";
+"sysdata.swapVM.title" = "Подкачка и образ сна";
+"sysdata.swapVM.desc" = "Файлы подкачки и образ гибернации в /private/var/vm. Управляются macOS; уменьшаются после перезагрузки.";
+"sysdata.systemCaches.title" = "Системные кэши";
+"sysdata.systemCaches.desc" = "/Library/Caches и временные деревья в /private/var/folders.";
+"sysdata.systemLogs.title" = "Системные логи";
+"sysdata.systemLogs.desc" = "Диагностические логи в /private/var/log и /Library/Logs.";
+"sysdata.spotlight.title" = "Индекс Spotlight";
+"sysdata.spotlight.desc" = "Поисковый индекс. Для измерения нужен Full Disk Access.";
+"sysdata.updates.title" = "Загруженные обновления";
+"sysdata.updates.desc" = "Скачанные обновления macOS, ожидающие установки.";
+"sysdata.snapshotsList" = "Локальные снапшоты";
+"sysdata.deleteSnapshot" = "Удалить снапшот";
+"sysdata.thinAll" = "Освободить место снапшотов";
+"sysdata.thinAllHelp" = "Просит Time Machine проредить локальные снапшоты и освободить их место (tmutil thinlocalsnapshots).";
+"sysdata.snapshotDeleted" = "Снапшот удалён";
+"sysdata.snapshotDeleteFailed" = "Не удалось удалить снапшот";
+"sysdata.snapshotError.fda" = "Time Machine отказала — нужен полный доступ к диску";
+"sysdata.snapshotError.notPermitted" = "Time Machine отказала — операция недоступна этой учётной записи";
+"sysdata.thinDone" = "Time Machine освобождает место снапшотов";
+"sysdata.explainer" = "Finder показывает всё это одной строкой «Системные данные». Размеры приблизительны: размер снапшотов APFS скрывает (обычно они входят в «Освобождаемое место»), а часть деревьев требует Full Disk Access. Подкачка и образ сна управляются macOS и не удаляются напрямую — подкачка очищается перезагрузкой.";
+
+/* Security audit */
+"nav.security" = "Безопасность";
+"security.title" = "Аудит безопасности";
+"security.scanning" = "Проверяю настройки безопасности…";
+"security.scoreLabel" = "Оценка безопасности";
+"security.openSettings" = "Открыть настройки";
+"security.status.pass" = "ОК";
+"security.status.fail" = "Нужно действие";
+"security.status.warn" = "Проверьте";
+"security.status.unknown" = "Неизвестно";
+
+"sec.filevault.title" = "Шифрование диска FileVault";
+"sec.filevault.on" = "Загрузочный диск зашифрован.";
+"sec.filevault.off" = "Диск не зашифрован.";
+"sec.filevault.fix" = "Включите FileVault, чтобы данные были в безопасности при утере или краже Mac.";
+"sec.filevault.unknown" = "Не удалось определить состояние шифрования.";
+"sec.firewall.title" = "Сетевой экран приложений";
+"sec.firewall.on" = "Файрвол включён.";
+"sec.firewall.off" = "Файрвол выключен.";
+"sec.firewall.fix" = "Включите файрвол, чтобы блокировать нежелательные входящие соединения.";
+"sec.firewall.unknown" = "Не удалось определить состояние файрвола.";
+"sec.gatekeeper.title" = "Gatekeeper";
+"sec.gatekeeper.on" = "Разрешён запуск только доверенных подписанных приложений.";
+"sec.gatekeeper.off" = "Gatekeeper отключён — могут запускаться неподписанные приложения.";
+"sec.gatekeeper.fix" = "Включите Gatekeeper, чтобы блокировать непроверенные приложения.";
+"sec.gatekeeper.unknown" = "Не удалось определить состояние Gatekeeper.";
+"sec.sip.title" = "Защита целостности системы (SIP)";
+"sec.sip.on" = "SIP защищает системные файлы.";
+"sec.sip.off" = "SIP отключён — системные файлы не защищены.";
+"sec.sip.fix" = "Включите SIP из Recovery (csrutil enable), если он вам не нужен отключённым.";
+"sec.sip.unknown" = "Не удалось определить состояние SIP.";
+"sec.autologin.title" = "Автоматический вход";
+"sec.autologin.on" = "Mac входит в систему без пароля при запуске.";
+"sec.autologin.off" = "При запуске требуется пароль.";
+"sec.autologin.fix" = "Отключите автоматический вход, чтобы для входа требовался пароль.";
+"sec.guest.title" = "Гостевая учётная запись";
+"sec.guest.on" = "Гостевая учётная запись включена.";
+"sec.guest.off" = "Гостевая учётная запись отключена.";
+"sec.guest.fix" = "Отключите гостевую запись, если она вам не нужна.";
+"sec.updates.title" = "Автопроверка обновлений";
+"sec.updates.on" = "macOS проверяет обновления автоматически.";
+"sec.updates.off" = "Автопроверка обновлений выключена.";
+"sec.updates.unknown" = "Не удалось прочитать настройку обновлений.";
+"sec.updates.fix" = "Включите автопроверку, чтобы вовремя получать исправления безопасности.";
+"sec.screenlock.title" = "Пароль после заставки / сна";
+"sec.screenlock.on" = "После сна или заставки требуется пароль.";
+"sec.screenlock.off" = "После сна или заставки пароль не требуется.";
+"sec.screenlock.unknown" = "Не удалось определить настройку блокировки на этой версии macOS.";
+"sec.screenlock.fix" = "Требуйте пароль сразу после сна или заставки.";
+
+/* Trash-based confirmations — these operations are reversible, so the wording
+   must not promise permanence. */
+"trash.confirmMsg" = "Они уйдут в Корзину — их можно вернуть из уведомления или из самой Корзины. Если объект защищён macOS, Finder сначала спросит пароль.";
+"common.moveToTrashFmt" = "В Корзину (%@)";
+"dup.staleSkippedFmt" = "Изменилось после сканирования и пропущено: %@.";
+"dup.staleGroupsSkippedFmt" = "Пропущено: %@ — файлы изменились после сканирования, пересканируйте.";
+"guard.blockedFmt" = "Отклонено для безопасности: %@.";
+
+/* MARK: - StateView */
+"state.clean.title" = "Чисто";
+"state.clean.desc" = "%1$@ · последний скан %2$@";
+"state.failure.title" = "Не удалось прочитать";
+"state.failure.desc" = "%1$@ · код %2$@";
+"state.copyDetails" = "Скопировать детали";
+"state.noAccess.title" = "Не хватает доступа";
+"state.scanAnyway" = "Сканировать так";
+"state.resetFilter" = "Сбросить фильтр";
+
+/* MARK: - Table chrome */
+"table.showAll" = "показать все";
+"table.moreFmt" = "Ещё %@";
+"sidebar.disk" = "Диск";
+
+/* MARK: - Smart Cleanup hero column and category table */
+"cleanup.consequence.trash" = "Файлы уйдут в Корзину — можно вернуть.";
+"cleanup.col.category" = "Категория";
+"cleanup.col.share" = "Доля";
+"cleanup.col.size" = "Объём";
+"cleanup.col.count" = "Объектов";
+"cleanup.scanned" = "7 категорий: кэши, логи, браузеры и Корзина";
+"footnote.moreFmt" = "Ещё %1$@ · %2$@";
+"footnote.showAll" = "Показать все";
+"toast.cached.title" = "Показан сохранённый результат";
+"toast.cached.bodyFmt" = "Скан от %@ · с тех пор диск мог измениться";
+"toast.cached.action" = "Пересканировать";
+
+"detail.sizeUnavailable" = "Размер не удалось измерить — папка слишком большая или недоступна.";
+
+/* MARK: - Per-screen keys */
+"apps.a11y.detailsFmt" = "Показать подробности «%@»";
+"apps.a11y.revealFmt" = "Показать «%@» в Finder";
+"apps.a11y.selectFmt" = "Выбрать «%@» для пакетного удаления";
+"apps.assocFmt" = "%1$@ · %2$@";
+"apps.col.app" = "Приложение";
+"apps.col.size" = "Объём";
+"apps.col.version" = "Версия";
+"apps.noAccessMissing" = "Без полного доступа к диску связанные файлы в защищённых папках ~/Library не видны, а объём занижается.";
+"apps.noAssociated" = "Связанных файлов не найдено";
+"apps.sharedDataFmt" = "Эти файлы общие с «%@» — другой копией программы — и останутся при удалении этой копии.";
+"apps.sort.name" = "Имя";
+"apps.sort.size" = "Объём";
+"apps.uninstalling" = "Удаление…";
+"consequence.permanent" = "удаление безвозвратное, минуя Корзину";
+"dev.noAccess.missing" = "Без полного доступа к диску не видны образы дисков внутри контейнеров других приложений (Docker, OrbStack). Всё остальное просканировать можно.";
+"dup.noAccessFmt" = "«%@» не читается без разрешения — дубликаты в этой папке не видны.";
+"dup.scopeLabel" = "Где";
+"large.a11y.reveal" = "Показать «%@» в Finder";
+"large.a11y.select" = "Выбрать «%@» для Корзины";
+"large.cappedFmt" = "Показаны только %1$@ самых больших совпадений — остальные меньше %2$@";
+"large.checkedFmt" = "%1$@ · файлы больше %2$@";
+"large.col.file" = "Файл";
+"large.hiddenSelectedFmt" = "Фильтр скрывает %@ из выбранных";
+"large.keyHints" = "Пробел — Быстрый просмотр · ⌘↩ — показать в Finder";
+"leftovers.confirmBatchFmt" = "Переместить остаточные файлы %@ в Корзину?";
+"leftovers.noAccess" = "Без полного доступа к диску контейнеры и защищённый кэш чужих приложений не видны — часть остатков не найдётся.";
+"menubar.toggleFmt" = "Показывать «%@» в строке меню";
+"privacy.checked" = "История, cookies и данные сайтов Safari, Chrome, Firefox, Brave и Arc";
+"privacy.col.browser" = "Браузер";
+"privacy.confirmClearFmt" = "Удалить историю и данные сайтов %@?";
+"privacy.confirmClearMsg" = "Cookies и данные сайтов удаляются без возврата — вы выйдете из части сайтов и войдёте заново. История удаляется вместе с ними, минуя Корзину: восстановить не получится. История Firefox очищается внутри его базы данных, поэтому закладки остаются. Пароли, закладки, автозаполнение и собственное хранилище расширений не затрагиваются; то, что расширение сохранило в Local Storage браузера, хранится вместе с данными сайтов и удаляется с ними.";
+"privacy.confirmQuitFmt" = "Завершить %@ и удалить историю и данные сайтов?";
+"privacy.confirmQuitMsg" = "Сначала браузеру будет предложено завершиться — он может спросить о несохранённых страницах. Пока он не закроется, ничего не удаляется. Затем cookies, данные сайтов и история удаляются без возврата, минуя Корзину: вы выйдете из части сайтов. История Firefox очищается внутри его базы данных, поэтому закладки остаются. Пароли, закладки, автозаполнение и собственное хранилище расширений не затрагиваются; то, что расширение сохранило в Local Storage браузера, удаляется вместе с данными сайтов.";
+"privacy.deleteForGoodFmt" = "Удалить без возврата (%@)";
+"privacy.noAccessMissing" = "Без полного доступа к диску история Safari не видна, и раздел может показать «чисто», когда это не так.";
+"privacy.quitAndClearFmt" = "Завершить и удалить (%@)";
+"privacy.quitFailedFmt" = "%@ всё ещё запущен — закройте его вручную и повторите";
+"settings.action.grant" = "Права…";
+"settings.action.reset" = "Сбросить";
+"settings.action.showApplications" = "Открыть «Программы»";
+"settings.alerts.cpuLabel" = "Загрузка CPU выше";
+"settings.alerts.tempLabel" = "Температура выше";
+"settings.chooseFmt" = "Выбрать %@";
+"settings.clearHistory.confirmMsg" = "Журнал удаляется безвозвратно — счётчик освобождённого места начнётся с нуля.";
+"settings.clearHistory.confirmTitle" = "Очистить историю очисток?";
+"settings.history.statsFmt" = "%1$@ · освобождено всего примерно %2$@";
+"settings.language.desc" = "Переключается без перезапуска";
+"settings.maintenance.irreversible" = "Сброс кэша и очистка журнала необратимы — оба спросят подтверждение.";
+"settings.resetCaches.confirmTitle" = "Сбросить кэш размеров?";
+"settings.resetCaches.short" = "Ускоряет повторные сканы";
+"settings.section.appearance" = "Внешний вид";
+"settings.versionFmt" = "Версия %@";
+"startup.onDemand" = "По требованию";
+"systemJunk.checked" = "7 категорий: артефакты Xcode, логи устройств, копии iOS, Quick Look и Почта";
+"systemJunk.noAccess" = "Вложения Почты и резервные копии iOS лежат в защищённых папках. Без полного доступа к диску сканирование покажет их пустыми.";
+
+/* MARK: - History, Orphans, Storage, System Data */
+"history.col.freed" = "Примерно освобождено";
+"history.col.items" = "Объектов";
+"history.col.section" = "Раздел";
+"history.col.when" = "Когда";
+"history.emptyDesc" = "Здесь отображаются последние очистки, их дата, раздел и примерный объём освобождённого места.";
+"history.openSectionFmt" = "Открыть «%@»";
+"orphan.col.type" = "Тип";
+"storage.col.category" = "Категория";
+"storage.col.share" = "Доля";
+"storage.col.size" = "Объём";
+"storage.open" = "открыть";
+"sysdata.a11y.explainFmt" = "Подробнее о «%@»";
+"sysdata.a11y.snapshotFmt" = "Снапшот от %@";
+"sysdata.checked" = "очищаемое место, снапшоты, подкачка, системные кэши и логи";
+"sysdata.col.action" = "Действие";
+"sysdata.col.component" = "Компонент";
+"sysdata.confirmDeleteMsg" = "Снапшот удаляется безвозвратно, минуя Корзину. Если это единственная копия файла, восстановить будет нечем.";
+"sysdata.confirmDeleteTitleFmt" = "Удалить снапшот от %@?";
+"sysdata.deleteAction" = "Удалить";
+"sysdata.grantAccess" = "Дать доступ";
+"sysdata.note.cleanedInCleanup" = "Очищается в разделе «Очистка»";
+"sysdata.note.sizeNeedsAccess" = "Размер недоступен без полного доступа к диску";
+"sysdata.note.snapshotsUnreadable" = "Не удалось прочитать список снапшотов — Time Machine не ответила";
+"sysdata.note.systemManaged" = "Управляется системой";
+"sysdata.thinAllFmt" = "Удалить все снапшоты (%@)";
+"sysdata.thinConsequence" = "Снапшоты удаляются безвозвратно, минуя Корзину.";
+
+/* MARK: - Monitor metric strip */
+"monitor.col.process" = "Процесс";
+"monitor.noSensor" = "нет датчика";
+
+
+/* MARK: - Security, Storage detail, Menu bar */
+"detail.a11y.openFmt" = "Открыть %@";
+"detail.a11y.rowFmt" = "%1$@, %2$@ — показать детали";
+"detail.emptyOrBlocked" = "Папка вернула пустой список. Либо она пуста, либо macOS не даёт приложению её прочитать — обычно дело в полном доступе к диску.";
+"detail.escHint" = "Esc — закрыть";
+"detail.inside" = "Внутри";
+"detail.ofDiskFmt" = "%@ диска";
+"detail.openInUninstaller" = "Открыть в Деинсталляторе";
+"detail.other" = "Прочее";
+"detail.sharesFmt" = "%1$@ папки · %2$@ диска";
+"menubar.atLeastOne" = "Хотя бы одна метрика всегда остаётся в строке меню.";
+"menubar.chooseMetrics" = "Выбрать метрики…";
+"menubar.cleanNothingFmt" = "Ничего не очищено: не удалось удалить %@. Запустите очистку из окна, чтобы увидеть причины.";
+"menubar.cleanNothing" = "Ничего не очищено.";
+"menubar.cleanFailedFmt" = "Не удалось удалить %@.";
+"menubar.cleaning" = "Очистка…";
+"menubar.diskFree" = "Свободно на диске";
+"menubar.pressureFmt" = "Давление: %@";
+"menubar.quickClean" = "Быстрая очистка";
+"cleanup.selectionChanged" = "Результаты сканирования изменились. Проверьте файлы и подтвердите очистку заново.";
+"cleanup.refreshBeforeCleaning" = "Перед очисткой обновляем сохранённые результаты. Проверьте новый скан и подтвердите очистку заново.";
+"sec.autologin.unknown" = "Не удалось определить настройку автоматического входа.";
+"sec.guest.unknown" = "Не удалось определить настройку гостевой учётной записи.";
+"menubar.quickClean.needsScan" = "Скана ещё нет — откроет приложение";
+"menubar.scanning" = "Сканирование…";
+"menubar.temp.hot" = "Горячо";
+"menubar.temp.normal" = "Норма";
+"menubar.temp.warm" = "Тепло";
+"menubar.tick" = "каждые 5 с";
+"risk.unmeasured" = "НЕ ИЗМЕРЕНО";
+"security.a11y.openSettingsFmt" = "Открыть настройки: %@";
+"security.a11y.rowFmt" = "%1$@ — %2$@";
+"security.unknown" = "%d неизвестно";
+"security.unknownReason" = "Не удалось прочитать настройку — проверка не дала ответа.";
+"security.willFind" = "Проверки только на чтение: FileVault, файрвол, Gatekeeper, SIP, автоматический вход, гостевая учётная запись, обновления и блокировка экрана.";
+
+/* MARK: - First-run safety rules */
+"onboard.access.body" = "Без полного доступа к диску macOS скрывает часть кэшей, и приложение не может ни измерить их, ни очистить. Остальные разрешения запрашиваются, только когда они нужны: «Автоматизация» — чтобы читать объекты входа и перемещать защищённые файлы через Finder, пароль администратора — для системных файлов и программ.";
+"onboard.access.granted" = "Полный доступ к диску предоставлен";
+"onboard.access.later" = "Можно выдать позже в настройках — приложение работает и без него, просто видит меньше.";
+"onboard.headline" = "Что это приложение удалит, а что не тронет";
+"onboard.lede" = "Три правила, которым оно следует на каждом экране. Прочитайте один раз — ничего в приложении их не нарушает.";
+"onboard.rule1.body" = "Файлы уходят в Корзину, а не мимо неё, — их можно вернуть. Необратимы лишь немногие действия: удаление приложений, кэши и артефакты сборки разработчика, приватные данные браузеров, очистка Корзины и удаление снапшотов Time Machine. Если файл защищён macOS, приложение предупредит об этом и сначала спросит пароль.";
+"onboard.rule1.title" = "По умолчанию всё обратимо";
+"onboard.rule2.body" = "Отмечено только то, что безопасно удалить. То, что требует решения — чужие данные, системные папки, медиатеки — отклоняется наотрез, что бы ни запросил экран.";
+"onboard.rule2.title" = "Рискованное не выбирается само";
+"onboard.rule3.body" = "При удалении остатки ищутся по идентификатору приложения, а не по похожему имени. Папка «Chrome что-нибудь» не удалится оттого, что вы удалили Chrome.";
+"onboard.rule3.title" = "Приложения сопоставляются по bundle ID";
+
+/* MARK: - Result panel and toasts */
+"celebrate.done" = "ОЧИСТКА ЗАВЕРШЕНА";
+"celebrate.restore" = "Вернуть из Корзины";
+"celebrate.subtitleFmt" = "Свободно на диске %1$@ · по журналу освобождено примерно %2$@";
+"toast.details" = "Детали";
+
+"common.done" = "Готово";
+
+"monitor.a11y.expandFmt" = "Раскрыть группу %@";
+"monitor.a11y.killFmt" = "Завершить %@";
+
+"cleanup.hero.clean" = "Очистить";
+
+/* ===== "Paper" visual style ===== */
+
+/* Navigation */
+"section.uninstaller" = "Деинсталлятор";
+"nav.apps" = "Приложения";
+
+/* Units */
+"unit.b" = "Б";
+"unit.bytes" = "байт";
+"unit.kb" = "КБ";
+"unit.mb" = "МБ";
+"unit.gb" = "ГБ";
+"unit.tb" = "ТБ";
+"unit.perSec" = "%@/с";
+
+/* Common */
+"common.updatedAt" = "обновлено %@";
+"common.checkedAt" = "проверено %@";
+"common.rescan.tooltip" = "Пересканировать";
+"common.deselect" = "Снять";
+"common.resetFilter" = "Сбросить фильтр";
+"common.resetFilters" = "Сбросить фильтры";
+"common.all" = "Все";
+"common.selected" = "Выбрано";
+"a11y.sortAscending" = "по возрастанию";
+"a11y.sortDescending" = "по убыванию";
+"a11y.on" = "включено";
+"a11y.off" = "выключено";
+
+/* Storage */
+"storage.subtitleFmt" = "%1$@ · %2$@ · %3$@";
+"storage.card.used" = "Занято";
+"storage.card.free" = "Свободно";
+"storage.card.cleanable" = "Можно очистить";
+"storage.card.snapshots" = "Снапшоты";
+"storage.distribution" = "Распределение";
+"storage.detail.shareFmt" = "%1$@ · %2$@ диска";
+
+/* Monitor */
+"monitor.thermal.tooltip" = "Тепловое состояние: %@";
+"monitor.temp.cpu" = "ЦП";
+"monitor.temp.gpu" = "ГП";
+"monitor.temp.batt" = "БАТ";
+"monitor.detail.cores" = "Ядра";
+"monitor.detail.coreSplitFmt" = "%1$d × E   %2$d × P";
+"monitor.detail.taskQueue" = "Очередь задач";
+"monitor.coresLabel" = "Нагрузка по ядрам";
+"monitor.detail.taskQueueFmt" = "%1$@ из %2$@";
+"monitor.detail.threads" = "Потоков";
+"monitor.detail.memPressure" = "Давление памяти";
+"monitor.detail.ssdLife" = "Ресурс SSD";
+"monitor.detail.battCapacity" = "Ёмкость от новой";
+"monitor.detail.localIp" = "Локальный адрес";
+"monitor.detail.interface" = "Интерфейс";
+"monitor.detail.session" = "За сессию";
+"monitor.detail.appMemory" = "Занято приложениями";
+"monitor.detail.fileCache" = "Кэш файлов";
+"monitor.detail.wired" = "Зарезервировано";
+"monitor.detail.compressed" = "Сжато";
+"monitor.detail.swap" = "Подкачка";
+"monitor.detail.displays" = "Дисплеев";
+"monitor.detail.sharedMemory" = "Память (общая)";
+"monitor.idle" = "Простой";
+"monitor.idleFmt" = "нет активности %d с";
+"monitor.chart.titleFmt" = "%1$@, %2$@";
+"monitor.range.1m" = "1м";
+"monitor.range.10m" = "10м";
+"monitor.range.1h" = "1ч";
+"monitor.batteryWearFmt" = "Износ %1$@ за %2$@. Замена рекомендуется, когда ёмкость упадёт ниже 80%%.";
+
+/* Risk groups */
+"risk.group.safe" = "Безопасно удалять";
+"risk.group.recreates" = "Проверьте перед удалением";
+"risk.group.permanent" = "Без возможности вернуть";
+
+/* Smart Cleanup */
+"cleanup.found" = "Найдено";
+"cleanup.freeOnDisk" = "Свободное место на диске";
+"cleanup.toDelete" = "К удалению";
+"cleanup.onlySafe" = "Только безопасное";
+"cleanup.deselectAll" = "Снять всё";
+"cleanup.trashWarning" = "В выборе есть Корзина — эти файлы удаляются без возврата.";
+"cleanup.foundSubtitleFmt" = "Найдено %1$@ в %2$@ · проверено %3$@";
+"cleanup.idleSubtitle" = "Кэши, логи, временные файлы, Корзина и установщики";
+"cleanup.projectionFmt" = "%1$@ → %2$@";
+"cleanup.afterTrashFmt" = "Ещё %@ — после очистки Корзины: то, что в неё перемещено, пока занимает место.";
+"cleanup.lastCleanupFmt" = "Последняя очистка %@";
+"cleanup.foundDetailFmt" = "%1$@ · %2$@";
+"cleanup.nothingSelected" = "ничего не выбрано";
+"cleanup.willFind" = "Проверим кэши системы и приложений, логи, временные файлы, Корзину и установщики.";
+"cleanup.scanFailed" = "Не удалось выполнить сканирование";
+
+/* Scan results */
+"scan.note.reversible" = "Перемещается в Корзину — можно вернуть";
+"scan.note.privacy" = "Удаляется без возврата: вы выйдете из части сайтов";
+"scan.note.startup" = "Приложения останутся на месте — отключается только автозапуск";
+"scan.col.share" = "Доля";
+"scan.col.size" = "Объём";
+"scan.col.item" = "Пункт";
+"scan.subtitleFmt" = "Найдено %1$@ · %2$@ · %3$@";
+/* Startup items: the section has no volume for the middle slot — it frees nothing */
+"scan.subtitlePairFmt" = "Найдено %1$@ · %2$@";
+"scan.sizeFilter.100mb" = "от 100 МБ";
+"scan.sizeFilter.500mb" = "от 500 МБ";
+"scan.sizeFilter.1gb" = "от 1 ГБ";
+"scan.sizeFilter.5gb" = "от 5 ГБ";
+
+/* Large files */
+"large.col.kind" = "Тип";
+"large.col.changed" = "Изменён";
+"large.col.size" = "Размер";
+"large.scope.home" = "поиск в домашней папке";
+"large.scope.disk" = "поиск по всему диску";
+"large.wholeDisk" = "Весь диск";
+"large.toTrash" = "В Корзину";
+"large.age.week" = "За неделю";
+"large.age.month" = "За месяц";
+"large.age.quarter" = "Старше 3 месяцев";
+"large.age.year" = "Старше года";
+"large.size.500mb" = "от 500 МБ";
+"large.size.1gb" = "от 1 ГБ";
+"large.size.5gb" = "от 5 ГБ";
+"large.size.10gb" = "от 10 ГБ";
+"large.partialTitle" = "Поиск прерван досрочно";
+"large.partialHint" = "Он упёрся в лимит времени или числа файлов, поэтому список отражает только просмотренную часть. Сузьте область или увеличьте минимальный размер и повторите.";
+"kind.video" = "Видео";
+"kind.archive" = "Архив";
+"kind.diskImage" = "Образ диска";
+"kind.audio" = "Аудио";
+"kind.data" = "Данные";
+"kind.project" = "Проект";
+
+/* Uninstaller */
+"apps.staleFilter" = "Давно не открывались";
+"apps.col.lastUsed" = "Последний запуск";
+"apps.col.files" = "Файлов";
+/* The subtitle reads "143 apps · 138.7 GB · 4 apps not opened in over three
+   months". The third clause drops out when nothing is stale — a subtitle never
+   shows a zero count — which is why the line has two forms.
+   The Russian verb is impersonal so it agrees with 1, 4 and 12 apps alike. */
+"apps.subtitleFmt" = "%1$@ · %2$@ · %3$@";
+"apps.subtitleNoStaleFmt" = "%1$@ · %2$@";
+"apps.staleCountFmt" = "%@ не открывали больше трёх месяцев";
+"apps.deleteWarning" = "Приложение и его файлы удаляются без возврата";
+
+/* Security */
+"security.checks" = "Проверки";
+"security.flaggedFmt" = "%1$d из %2$d с замечаниями";
+"security.risk" = "Чем рискуете";
+"security.fix" = "Что сделать";
+"security.verdict.great" = "Отлично";
+"security.verdict.good" = "Хорошо";
+"security.verdict.issues" = "Есть замечания";
+"security.subtitle" = "Аудит настроек macOS · только чтение";
+"security.plate.on" = "Включено";
+"security.plate.off" = "Выключено";
+"security.plate.warn" = "Внимание";
+"security.plate.unknown" = "Нет данных";
+"security.topRiskFmt" = "%1$@: %2$@ Из найденного это главное — начните с него.";
+"security.allClear" = "Все проверки пройдены — менять ничего не нужно.";
+
+/* "What you risk" / "what to do" for flagged checks */
+"sec.filevault.risk" = "Пароль учётной записи закрывает вход в систему, но не сам диск. Если Mac потеряется или его вскроют, накопитель прочитают с другого компьютера: почта, документы и сохранённые пароли откроются целиком.";
+"sec.filevault.todo" = "Системные настройки → Конфиденциальность и безопасность → FileVault. Шифрование идёт в фоне, работать можно не дожидаясь конца. Ключ восстановления сохраните отдельно от Mac.";
+"sec.firewall.risk" = "В общей сети — кафе, коворкинг, отель — любой сосед по Wi-Fi может стучаться в открытые порты вашего Mac: локальные серверы разработки, общий доступ к экрану, AirPlay. Пароля у него нет, но он видит, какие сервисы подняты, и может перебирать известные уязвимости.";
+"sec.firewall.todo" = "Системные настройки → Сеть → Брандмауэр. Исходящие соединения он не трогает — в повседневной работе вы разницы не заметите.";
+"sec.gatekeeper.risk" = "macOS перестаёт проверять подпись и нотаризацию: скачанное приложение запускается молча, без вопроса, откуда оно взялось. Подменённый установщик при этом выглядит ровно так же, как настоящий.";
+"sec.gatekeeper.todo" = "Верните проверку командой sudo spctl --master-enable в Терминале, а нужные исключения делайте по одному через пункт «Открыть» в контекстном меню приложения.";
+"sec.sip.risk" = "Защита целостности не даёт менять системные файлы даже с правами root. Пока она снята, процесс, получивший root, закрепляется в системе так, что переустановка приложений от него не избавит.";
+"sec.sip.todo" = "Перезагрузитесь в Recovery, откройте Терминал и выполните csrutil enable, затем загрузитесь обычным образом.";
+"sec.autologin.risk" = "После включения Mac сразу оказывается в вашей учётной записи — пароль не спрашивают. Достаточно нажать кнопку питания, чтобы получить почту, связку ключей и файлы.";
+"sec.autologin.todo" = "Системные настройки → Пользователи и группы → «Автоматический вход» → «Выключено».";
+"sec.guest.risk" = "Гостевой сеанс открывается без пароля, и из него виден общий доступ к файлам и принтерам. Для чужого человека это готовая точка входа в сеть, где стоит ваш Mac.";
+"sec.guest.todo" = "Системные настройки → Пользователи и группы → «Гость»: выключите вход и доступ к общим папкам.";
+"sec.updates.risk" = "Обновления безопасности закрывают дыры, о которых уже известно публично: одной специально собранной страницы или файла хватает, чтобы выполнить чужой код. Пока автопроверка выключена, вы узнаёте о таком исправлении последним.";
+"sec.updates.todo" = "Системные настройки → Основные → Обновление ПО: включите автоматическую проверку. Установка обычно занимает около десяти минут и один перезапуск.";
+"sec.screenlock.risk" = "Экран гаснет, но сеанс остаётся открытым: достаточно тронуть трекпад, чтобы попасть в почту, мессенджеры и связку ключей. В офисе или кафе это цена минутного отсутствия за столом.";
+"sec.screenlock.todo" = "Системные настройки → Экран блокировки: «Запрашивать пароль после начала заставки или выключения экрана» — «Сразу».";
+
+/* History */
+"history.totalAllTime" = "Примерно освобождено по журналу";
+"history.equivalentFmt" = "Примерно %1$@ видео 4K или %2$@.";
+"history.perCleanup" = "По очисткам";
+"history.bySection" = "Откуда освобождалось";
+"history.insightFmt" = "Больше всего места отдаёт «%1$@» — %2$@ за %3$@.";
+"history.runCleanup" = "Запустить очистку";
+"history.details" = "подробнее";
+"history.subtitleFmt" = "Журнал очисток · последняя %@";
+"history.chartHint" = "нажмите на столбец";
+"history.stat.average" = "в среднем";
+
+/* Settings */
+"settings.menubar.metrics" = "Метрики в строке меню";
+"settings.menubar.style" = "Вид";
+"settings.menubar.style.stack" = "В две строки";
+"settings.menubar.style.inline" = "В строку";
+"settings.menubar.style.gauge" = "Со шкалой";
+"settings.menubar.preview" = "Как это выглядит";
+"settings.density" = "Плотность таблиц";
+"settings.density.regular" = "Обычная";
+"settings.density.compact" = "Компактная";
+"settings.density.desc" = "Высота строк в «Мониторе» и «Деинсталляторе».";
+"settings.menubar.metrics.desc" = "Показываются рядом с часами";
+"settings.menubar.hint.stack" = "Сверху подпись, снизу значение. Включите «Температуру ЦП» вместе с «Нагрузкой ЦП» — она встанет над нагрузкой.";
+"settings.menubar.hint.stackTemp" = "Температура сверху, нагрузка снизу — обе величины в ширине одного значения.";
+"settings.menubar.hint.inline" = "Всё в одну строку — занимает больше места, но читается издалека.";
+"settings.menubar.hint.gauge" = "Вертикальная шкала слева от значения — виден уровень, не читая цифру.";
+"menubar.short.cpuLoad" = "CPU";
+"menubar.short.memLoad" = "RAM";
+"menubar.short.gpuLoad" = "GPU";
+"menubar.short.cpuTemp" = "ЦП°";
+"menubar.short.gpuTemp" = "ГП°";
+"unit.celsius" = "°C";
+
+/* States */
+"state.notScanned.title" = "Раздел не сканировался";
+"state.noMatch.title" = "Ничего не совпало";
+"state.noMatch.desc" = "Фильтр «%1$@» не оставил ни одного пункта из %2$d.";
+
+/* Toast */
+"toast.gotIt" = "Понятно";
+"storage.snapshotsUnit" = "шт.";
+"storage.pickCategory" = "Выберите категорию, чтобы посмотреть, из чего она состоит.";
+
+/* Monitor — screen strings */
+"monitor.subtitle.coresFmt" = "%1$@: %2$d производительных + %3$d энергоэффективных";
+"monitor.axis.spanFmt" = "−%@ мин";
+"monitor.col.cpu" = "ЦП";
+"monitor.col.memory" = "Память";
+"monitor.col.shareCpu" = "Доля ЦП";
+"monitor.col.shareMemory" = "Доля памяти";
+"monitor.searchProcess" = "Поиск процесса";
+"monitor.procFilteredFmt" = "%1$@ из %2$@";
+"monitor.detail.receive" = "Приём";
+"monitor.detail.transmit" = "Передача";
+"monitor.detail.read" = "Чтение";
+"monitor.detail.write" = "Запись";
+"monitor.detail.readWrite" = "чтение и запись";
+"monitor.detail.temperature" = "Температура";
+"monitor.detail.temperatureAverage" = "Средняя температура";
+"monitor.detail.frequency" = "Частота";
+"monitor.detail.load" = "Загрузка";
+"monitor.detail.charge" = "Заряд";
+"monitor.detail.cycles" = "Циклов зарядки";
+"monitor.detail.power" = "Питание";
+"monitor.power.adapter" = "От адаптера";
+"monitor.power.battery" = "От батареи";
+
+/* Universal result screen — captions of the four sections */
+"scan.action.removeSelected" = "Удалить выбранное";
+
+"dup.describes" = "точное совпадение по SHA-256, показан лишний объём";
+"dup.col.copies" = "Копии";
+"dup.contextFmt" = "%1$@ по %2$@";
+"dup.action" = "Удалить лишние копии";
+"dup.note" = "Лишние копии уйдут в Корзину — по одной в каждой группе остаётся";
+"dup.willFind" = "Сгруппируем файлы по размеру, затем сверим хеши SHA-256.";
+
+"leftovers.describes" = "папки и файлы приложений, которых больше нет";
+"leftovers.col.removed" = "Приложение удалено";
+"leftovers.vendorInstalled" = "Производитель ещё установлен — проверьте";
+"leftovers.willFind" = "Сгруппируем оставшиеся в ~/Library файлы по bundle ID.";
+
+"orphan.describes" = "агенты и демоны, которым нечего запускать";
+"orphan.willFind" = "Найдём LaunchAgents, демоны и хелперы, которым нечего запускать.";
+"orphan.confirmBatchFmt" = "Переместить выбранные элементы (%d) в Корзину?";
+
+"startup.describes" = "что стартует вместе с системой";
+"startup.describesDenied" = "что стартует вместе с системой · объекты входа скрыты без доступа к Автоматизации";
+"startup.col.impact" = "Влияние на запуск";
+"startup.action" = "Отключить выбранные";
+"startup.willFind" = "Соберём объекты входа, агенты пользователя и системные демоны.";
+"startup.confirmDisableFmt" = "Отключить выбранные элементы (%d)?";
+"startup.adminPromptFmt" = "CleanAppCache хочет отключить автозапуск: %@.";
+"startup.confirmAdminFmt" = "%@ — системные службы: macOS запросит пароль администратора.";
+"startup.turnedOffFmt" = "Отключено: %@";
+"startup.turnOffFailedFmt" = "Не удалось отключить: %@";
+/* macOS does not report startup time in seconds. The section shows what is
+   measurable: the size of the program an entry launches, and how many start at login. */
+"startup.col.program" = "Программа";
+"startup.atLoginFmt" = "при входе: %@";
+"startup.scope.loginItem" = "объект входа";
+"startup.scope.userAgent" = "пользователь";
+"startup.scope.globalAgent" = "система";
+"startup.scope.daemon" = "демон";
+
+/* Universal result screen: context columns and the action */
+"scan.col.what" = "Что это";
+"scan.col.source" = "Источник";
+"scan.col.tool" = "Инструмент";
+"scan.action.clean" = "Очистить выбранное";
+
+/* System Junk: who left the category behind — the "Source" column */
+"systemJunk.xcodeDerivedData.source" = "Xcode";
+"systemJunk.xcodeArchives.source" = "Xcode";
+"systemJunk.xcodeDeviceLogs.source" = "Xcode";
+"systemJunk.iOSBackups.source" = "Finder";
+"systemJunk.quickLookCache.source" = "Quick Look";
+"systemJunk.mailDownloads.source" = "Почта";
+"systemJunk.brokenDownloads.source" = "Загрузки";
+
+/* Developer: tool caches and project artifacts in one list */
+"dev.describes" = "кэши пакетных менеджеров и артефакты сборки";
+"dev.willFind" = "Проверим кэши инструментов и артефакты сборки в проектах.";
+
+/* Privacy: what actually leaves the browser */
+"privacy.item" = "История и данные сайтов";
+
+/* Scan parameters in the screen header (Duplicates, Large Files).
+   Not a filter over what was found — the threshold and the reach of the next
+   search. The ladder is spelled out, like the neighbouring "scan.sizeFilter.*"
+   and "large.size.*": `Fmt` prints a measurement with fixed decimals
+   ("5.00 MB"), and these are choices, not measurements. The bytes behind each
+   label are decimal (1 KB = 1000 bytes), like every size in the app. */
+"scan.minSize" = "Мин. размер файла";
+"scan.min.1mb" = "1 МБ";
+"scan.min.5mb" = "5 МБ";
+"scan.min.50mb" = "50 МБ";
+"scan.min.100mb" = "100 МБ";
+"scan.min.500mb" = "500 МБ";
+"scan.min.1gb" = "1 ГБ";
+"scan.min.5gb" = "5 ГБ";
+
+/* Monitor's right-hand panel — rows backed by a real data source.
+   Disk: operations per second and the drive's name from IOKit, the status from
+   the NVMe controller's own critical-warning field. Battery: capacity and
+   adapter wattage read from the battery and the adapter themselves. */
+"monitor.detail.ops" = "Операций/с";
+"monitor.detail.device" = "Устройство";
+"monitor.detail.smart" = "Состояние SMART";
+"monitor.smart.ok" = "Проверено";
+"monitor.smart.warning" = "Есть предупреждения";
+/* Lifetime writes, e.g. "84 TB written". No API publishes the drive's rated
+   endurance, so this states only what the drive reported itself. */
+"monitor.detail.ssdWrittenFmt" = "Записано %@ за всё время.";
+"monitor.detail.capacity" = "Расчётная ёмкость";
+"monitor.mah" = "мА·ч";
+"monitor.power.adapterWattsFmt" = "От адаптера %@ Вт";
+
+/* "External address" — the app's only network request. One footnote under
+   the Network list says where the address came from; the second says why it
+   shows a dash instead. */
+"monitor.detail.extIp" = "Внешний адрес";
+"monitor.detail.extIp.note" = "Внешний адрес получен запросом к внешней службе и обновляется при смене сети. Отключается в настройках.";
+"monitor.detail.extIp.off" = "Внешний адрес не запрашивается. Включите его в настройках, если он нужен.";
+"settings.externalIp" = "Показывать внешний IP-адрес";
+"settings.externalIp.desc" = "Единственный сетевой запрос приложения: адрес спрашивается у внешней службы, пока открыта панель «Сеть» в «Мониторе». По умолчанию выключено.";
+
+/* Menu-bar layouts */
+"settings.menubar.style.value" = "Одно значение";
+"settings.menubar.style.dotted" = "Через точку";
+"settings.menubar.style.labeled" = "Подпись и значение";
+"settings.menubar.style.graph" = "Мини-график";
+"settings.menubar.style.cores" = "Столбики по ядрам";
+"settings.menubar.hint.value" = "Только первая закреплённая метрика.";
+"settings.menubar.hint.dotted" = "Все закреплённые метрики через точку.";
+"settings.menubar.hint.labeled" = "Приглушённая подпись перед значением.";
+"settings.menubar.hint.graph" = "Линия за последнюю минуту и текущее значение.";
+"settings.menubar.hint.cores" = "Загрузка по ядрам и общая нагрузка.";
+
+/* Cleanup outcome: space freed for good versus moved to the Trash */
+"outcome.freedFmt" = "Освобождено примерно %@";
+"outcome.trashedFmt" = "В Корзину перемещено %@";
+"outcome.bothFmt" = "Освобождено %1$@ · в Корзину перемещено %2$@";
+"outcome.trashNote" = "Это место освободится, когда Корзину очистят.";
+"celebrate.erasedFmt" = "%@ удалено навсегда — это место уже свободно.";
+"celebrate.trashedFmt" = "%@ в Корзине — это место освободится, когда её очистят.";
+"history.col.trashed" = "Корзина";
+"history.trashedTotalFmt" = "Ещё %@ перемещено в Корзину и не считается освобождённым.";
+"cleanup.partialSelection" = "выбрано частично";
+
+"detail.sizingProgressFmt" = "Проверено: %d из %d";
+"detail.partialSize" = "Измеренная часть";
+
+"storage.folderScopes" = "Категории — это папки, а не типы файлов. Приложения, сборки и кэши внутри Документов учитываются в Документах. Жёсткие ссылки относятся к первой подходящей папке.";
+
+"storage.partialScopes" = "≥ — нижняя граница: часть папок недоступна или сканирование неполное. — означает, что размер не измерен. Эти пробелы входят в оставшийся баланс.";
+
+"storage.residualExplanation" = "Остаток занятого места за пределами измеренных папок. Здесь могут быть данные приложений, другие папки пользователей, системные данные, снимки и недоступные области. Это не оценка мусора; единой папки для просмотра нет. Общие блоки APFS и очищаемое системой место могут не совпадать с суммой размеров папок.";
+
+"storage.allocationMismatch" = "Сумма выделенного места папок превышает занятое место диска. Клоны и общие блоки APFS, очищаемое системой место и изменения во время сканирования мешают сверке. Полоса показывает занятое и свободное место; ниже — оценки папок.";
+
+"storage.unmeasured" = "Размер не измерен";
+
+"detail.diskFolders" = "Обзор папок диска";
+
+"detail.exploreUnassigned" = "Исследовать остальные папки";
+
+"detail.outsideCategories" = "Папки вне категорий";
+
+"detail.unassignedScope" = "Папки вне основных категорий. Уже учтённые папки исключены; скрытые папки видны, приватные хранилища не сканируются. Размеры объясняют лишь измеренную часть остатка; недоступные области, снимки и различия APFS учитываются отдельно. При подсчёте общей суммы жёсткие ссылки учитываются один раз.";
+
+"detail.diskScope" = "Обзор файловой системы, а не расшифровка «Не распределено». Размеры папок включают их содержимое и не меняют категории. Другие тома и цели симлинков не сканируются. При подсчёте общей суммы жёсткие ссылки учитываются один раз.";
+
+"detail.measureFolders" = "Измерить список";
+
+"detail.openSubfolder" = "Откройте папку, чтобы измерить её содержимое.";
+
+"detail.scanBudget" = "Измерение занятого места длится до 20 секунд.";
+
+"detail.incompleteScan" = "Неполный результат: часть размеров неизвестна или является нижней границей. Доступные папки можно исследовать или пересканировать.";
+
+"detail.accessDenied" = "Нет доступа";
+
+"detail.externalVolume" = "Другой том";
+
+"detail.alreadyCategorized" = "Содержит учтённые папки";
+
+"detail.notDirectory" = "Путь не является папкой";
+
+"detail.unavailable" = "Недоступно или перемещено";
+
+"detail.partial" = "Частично";
+
+"detail.scanCancelled" = "Сканирование остановлено";
+
+"detail.notMeasuredYet" = "Размеры ещё не измерялись. Откройте папку или запустите измерение списка.";
+
+"settings.lowDisk.enable" = "Уведомлять о нехватке места";
+"settings.lowDisk.desc" = "Когда свободно меньше 10% диска, не чаще одного раза в сутки. Работает независимо от алертов монитора.";
+
+"apps.sharedContainersKept" = "Общие контейнеры и сценарии групп приложений сохраняются: ими могут пользоваться другие программы.";
+
+"apps.changedSinceScanFmt" = "Приложения изменились и не удалены: %@";
+"apps.rescanBeforeRemoval" = "Повтори сканирование и проверь список перед удалением.";
+
+"removal.changedSinceScanFmt" = "Сохранено после повторной проверки: %@";
+"removal.rescanHint" = "Объекты или причины их удаления изменились. Пересканируй список перед следующей очисткой.";
+
+"detail.sharedAllocation" = "Размеры показывают долю выделенного места: жёсткие ссылки на один файл учитываются только в одной строке.";
+
+// Scan exclusions
+"scan.skipped.titleFmt" = "Пропущено: %@";
+"scan.skipped.explanation" = "Эти пути не предлагаются для очистки и не входят в доступный объём. Закрой приложение-владельца или устрани ограничения доступа и повтори проверку.";
+"scan.skipped.cached" = "Причины сохранены при прошлом сканировании; повтори проверку для актуального состояния.";
+"scan.skipped.legacyTitle" = "Нужна повторная проверка охвата";
+"scan.skipped.legacy" = "В старом результате нет полной информации о пропусках. Для полной проверки запусти сканирование заново.";
+"scan.skipped.reasonCountFmt" = "%@ · %@";
+"scan.skipped.omittedFmt" = "Ещё %@ путей не показаны: достигнут предел отчёта или скрыты личные пути в кэше. Они включены в счётчики.";
+"scan.skipped.noCleanable" = "Нет доступных объектов для очистки";
+"scan.skipped.inUse" = "Приложение-владелец работает";
+"scan.skipped.recent" = "Недавно изменено — повторите проверку позже";
+"scan.skipped.safetyProtected" = "Защищено правилами безопасной очистки";
+"scan.skipped.systemProtected" = "Защищено macOS";
+"scan.skipped.unreadable" = "Не удалось полностью прочитать или измерить путь";
+"scan.skipped.verificationLimit" = "Слишком много объектов для безопасной проверки активности";
+"scan.skipped.symbolicLink" = "Символическая ссылка; цель не предлагается для очистки";
+"scan.skipped.ownLogs" = "CleanAppCache использует собственные журналы";
+"scan.skipped.cleanupTitleFmt" = "Пропущено при последней очистке: %@";
+"scan.skipped.cleanupExplanation" = "Эти пути не затронуты последней очисткой. Причины отражают состояние на тот момент; результат сканирования ниже показывает текущую доступность.";
+
+"dev.item.uv-cache.title" = "Кэш пакетов uv";
+"dev.item.uv-cache.detail" = "Загрузки и собранные пакеты Python. Очищается через uv с проверкой блокировки; работающие процессы не прерываются.";
+"dev.item.uv-cache.loss" = "Пакеты потребуется скачать или собрать заново. Окружения, использующие символические ссылки на кэш, могут перестать работать.";
+"dev.uv.unavailable" = "uv не найден. Установите или восстановите uv для безопасной очистки его кэша.";
+"dev.uv.configuration" = "Не удалось проверить расположение кэша uv. Проверьте настройки uv и повторите сканирование.";
+"dev.uv.changed" = "Кэш uv изменился или его содержимое не удалось проверить. Очистка не выполнена; повторите сканирование.";
+"dev.uv.busy" = "Кэш используется uv. Завершите команду uv или запущенный через неё инструмент и повторите очистку.";
+"dev.uv.unsupported" = "Эта версия uv не поддерживает необходимую защиту блокировкой. Обновите uv перед очисткой.";
+"dev.uv.failed" = "uv не смог завершить очистку. Повторите сканирование, чтобы проверить оставшийся кэш.";
+"dev.uv.cleanedFmt" = "Обработано %@; размер кэша уменьшился на %@. Свободное место может отличаться из-за общих блоков файлов.";
+
+"scan.skipped.managedCache" = "Кэш очищается штатным инструментом; для uv используйте раздел «Разработка»";
+
+"storage.unexplainedBalance" = "Вне измеренных папок";
+"storage.measuredScopesFmt" = "Измеренные папки категорий: %@";
+"storage.balanceNotInventory" = "Число выше — разность, а не сумма найденных файлов. Откройте обзор ниже, чтобы измерить конкретные пути.";
+"storage.systemUnmeasured" = "Система / APFS: отдельно не измерено. Снимки, общие блоки и очищаемое системой место здесь нельзя достоверно отнести к обычным папкам.";
+"detail.measuredAtFmt" = "Замер: %@";
+"detail.savedAtFmt" = "Сохранённый замер: %@ · обновите для проверки";
+"detail.coverageFmt" = "Проверено %d из %d · неполных: %d · с ограничениями: %d";
+"detail.privateMetadata" = "Приватное хранилище: только сведения о папке";
+"detail.timeBudget" = "Лимит времени; измеренная часть сохранена";
+"detail.aboutSizes" = "Как измеряются размеры";
+"detail.folderOverview" = "Сводка по папке";
+"detail.itemDetails" = "Сведения об элементе";
+"detail.largestEntries" = "Самые крупные из измеренных";
+"detail.filteredCountFmt" = "Показано %d из %d";
+"detail.staleListing" = "Сохранённый список · обновите его";
+"cleanup.expandCategoryFmt" = "Показать файлы в категории «%@»";
+"cleanup.collapseCategoryFmt" = "Скрыть файлы в категории «%@»";
+"cleanup.copyPath" = "Скопировать путь";
+"history.originalOutcome" = "На момент очистки";
+"history.removedOfFmt" = "Убрано %@ из %@";
+"history.notAttemptedFmt" = "Не обработано: %@";
+"history.noReport" = "Для этой операции сохранены только общие итоги.";
+"detail.measureFolder" = "Измерить эту папку";
+"detail.deepMeasurement" = "Отдельный замер папки";
+"detail.deepMeasurementHelp" = "Измерить эту папку с отдельным лимитом в 60 секунд.";
+
+"storage.trend.title" = "История свободного места";
+"storage.trend.subtitle" = "Замеры свободного места и отметки очисток на загрузочном диске";
+"storage.trend.week" = "7 дней";
+"storage.trend.month" = "30 дней";
+"storage.trend.date" = "Дата";
+"storage.trend.collecting" = "Замеры сохраняются при открытии «Хранилища». Для графика нужны замеры, сделанные в разные часы.";
+"storage.trend.cleanups" = "Очистки за период";
+"cleanup.alwaysSkip" = "Всегда пропускать";
+"cleanup.removeExclusion" = "Снять исключение";
+"cleanup.exclusions" = "Исключения «Умной очистки»";
+"cleanup.exclusionsHint" = "Нажми правой кнопкой на файл или папку в «Умной очистке» и выбери «Всегда пропускать».";
+"scan.skipped.userExcluded" = "В твоих исключениях";
+"cleanup.search" = "Поиск по имени или пути";
+"cleanup.onlySelected" = "Только выбранные";
+"cleanup.filterScope" = "Очистка учитывает и выбранные элементы, скрытые фильтром.";
+"cleanup.noMatches" = "По этим фильтрам ничего не найдено.";
+"scan.skipped.runningAppsFmt" = "Запущено: %@";
+"scan.skipped.openPrivacy" = "Настройки полного доступа к диску";
+"storage.startupVolume" = "Загрузочный диск";
+"storage.selectVolume" = "Выбрать диск";
+"storage.volumeCapacity" = "Ёмкость";
+"storage.volumeUnavailable" = "Не удалось прочитать выбранный том.";
+"detail.searchHere" = "Поиск в этой папке";
+"detail.findLargeFilesHere" = "Найти большие файлы здесь";
+"detail.findDuplicatesHere" = "Найти дубликаты здесь";
+"searchProfiles.title" = "Профили";
+"searchProfiles.chooseFolder" = "Выбрать папку для поиска…";
+"searchProfiles.save" = "Сохранить профиль поиска…";
+"searchProfiles.saveAction" = "Сохранить";
+"searchProfiles.name" = "Название профиля";
+"searchProfiles.remove" = "Удалить профиль";

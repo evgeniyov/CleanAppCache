@@ -1,0 +1,151 @@
+name: Bug report
+description: Something in CleanAppCache does not work as described.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        **Do not open a public issue for data loss or security problems.** If the app deleted something it should not have, or you found a way to make it delete protected files, run with elevated rights or leak data, report it privately as described in [SECURITY.md](https://github.com/evgeniyov/CleanAppCache/security/policy).
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: Apple menu > About This Mac, or `sw_vers`.
+      placeholder: "e.g. macOS 15.3.1 (24D70)"
+    validations:
+      required: true
+
+  - type: input
+    id: mac
+    attributes:
+      label: Mac model and chip
+      description: Model identifier and chip, e.g. from `sysctl hw.model` and About This Mac.
+      placeholder: "e.g. MacBook Air (Mac16,12), Apple M4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: How did you get the app?
+      options:
+        - Built from source
+        - Release download (DMG)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit or release version
+      description: For a source build, the output of `git rev-parse --short HEAD`. For a release, the version tag.
+      placeholder: "e.g. 114c6a1 or v1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: App language
+      options:
+        - English
+        - Russian
+    validations:
+      required: true
+
+  - type: dropdown
+    id: fda
+    attributes:
+      label: Full Disk Access
+      description: Is CleanAppCache allowed in System Settings > Privacy & Security > Full Disk Access?
+      options:
+        - "Yes"
+        - "No"
+        - Not sure
+    validations:
+      required: false
+
+  - type: input
+    id: screen
+    attributes:
+      label: Screen
+      description: Where the problem happens.
+      placeholder: "e.g. Large Files, Uninstaller > Leftovers, Monitor, menu-bar widget"
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include any error message shown by the app. Screenshots help.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: unexpected-change
+    attributes:
+      label: Did the app delete or change anything you did not expect?
+      description: If files were lost or a protected location was touched, please also read the note at the top about SECURITY.md.
+      options:
+        - "No"
+        - Yes — describe below
+    validations:
+      required: true
+
+  - type: textarea
+    id: unexpected-details
+    attributes:
+      label: What was deleted or changed
+      description: Paths (you may shorten your user name), whether the items went to the Trash or were removed permanently, and which confirmation you saw.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ### Sensor reading looks wrong
+        Fill this in only if the problem is a Monitor or menu-bar reading (temperature, frequency, GPU load, power, fan). Sensors are read on a best-effort basis; a value the app cannot read is shown as "—".
+
+  - type: textarea
+    id: sensor
+    attributes:
+      label: Sensor comparison
+      description: Which reading, what CleanAppCache shows, and what a reference tool shows at the same moment (name the tool, e.g. `powermetrics`, macmon, iStat Menus).
+      placeholder: |
+        Reading: CPU temperature
+        CleanAppCache: 38 °C
+        Reference (tool name): 52 °C
+        Machine state: idle / under load
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant lines from ~/Library/Logs/CleanAppCache. Review them before pasting; remove anything you do not want to make public.
+      render: text
+    validations:
+      required: false

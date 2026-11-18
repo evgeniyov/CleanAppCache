@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+*.swp
+
+# Swift Package Manager / build output
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# Distribution artifacts
+*.dmg
+*.app/
+*.zip
+
+# Stray Python virtual-envs (do not belong in a Swift project)
+.venv/
+venvcd/
+venv/
+pyvenv.cfg
+bin/
+include/
+lib/
+lib64/
+
+# Editor and assistant tooling (local settings)
+.vscode/*
+!.vscode/launch.json
+.idea/
+.claude/
+
+# DMG build staging (created by build.py)
+_dmg_staging/
+
+# Local design reference material
+.design-ref/

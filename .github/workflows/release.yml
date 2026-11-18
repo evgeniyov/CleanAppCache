@@ -1,0 +1,111 @@
+name: Release
+
+# A tag such as v2.0.0 produces a Developer ID-signed, notarized and stapled DMG
+# in a GitHub Release, with that version's CHANGELOG.md section as the body.
+#
+# Without Developer ID secrets the workflow does nothing: the `release` job is
+# skipped. It needs these repository secrets:
+#   DEVELOPER_ID_P12_BASE64     — Developer ID Application certificate as p12, base64
+#   DEVELOPER_ID_P12_PASSWORD   — password for the p12
+#   DEVELOPER_ID_IDENTITY       — "Developer ID Application: … (TEAMID)"
+#   APPLE_ID / APPLE_TEAM_ID / APPLE_APP_PASSWORD — for notarytool
+#     (APPLE_APP_PASSWORD is an app-specific password from appleid.apple.com)
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  # The `secrets` context is unavailable in a job-level `if`, so a step checks
+  # for the certificate and passes the result to the next job as an output.
+  preflight:
+    name: Secrets present?
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          HAS_CERT: ${{ secrets.DEVELOPER_ID_P12_BASE64 != '' && secrets.DEVELOPER_ID_IDENTITY != '' && secrets.APPLE_APP_PASSWORD != '' }}
+        run: |
+          echo "ready=$HAS_CERT" >> "$GITHUB_OUTPUT"
+          [ "$HAS_CERT" = "true" ] || echo "::notice::Developer ID secrets are not configured — release skipped"
+
+  release:
+    name: Sign, notarize, publish
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import Developer ID certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          CERT_PASSWORD:   ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KC="$RUNNER_TEMP/build.keychain-db"; PW=$(openssl rand -hex 16)
+          security create-keychain -p "$PW" "$KC"
+          security set-keychain-settings -lut 3600 "$KC"
+          security unlock-keychain -p "$PW" "$KC"
+          echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$PW" "$KC"
+          security list-keychains -d user -s "$KC" login.keychain-db
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Store notarytool credentials
+        env:
+          APPLE_ID:           ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID:      ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials ci-notary \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+
+      - name: Build, sign, notarize, staple
+        # build.py does all of this when DEVELOPER_ID and NOTARY_PROFILE
+        # are set, and fails if Apple rejects the submission.
+        env:
+          DEVELOPER_ID: ${{ secrets.DEVELOPER_ID_IDENTITY }}
+          NOTARY_PROFILE: ci-notary
+          TAG: ${{ github.ref_name }}
+        run: VERSION="${TAG#v}" python3 build.py
+
+      - name: Verify bundle
+        run: ./Scripts/check_bundle.sh CleanAppCache.app
+
+      - name: Gatekeeper check
+        run: spctl --assess --type open --context context:primary-signature -v CleanAppCache.dmg
+
+      - name: Release notes from CHANGELOG.md
+        # The "## <version> — …" section up to the next "## ". The exact
+        # version is tried first; a version ending in ".0" then falls back to
+        # the heading without it (v2.0.0 matches "## 2.0").
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          notes="$RUNNER_TEMP/notes.md"
+          section() {
+            # Appending "" forces a string comparison: awk would otherwise treat
+            # "2" and "2.0" as numerically equal.
+            awk -v v="$1" '
+              /^## / { on = ($2 "" == v "") }
+              on { print }
+            ' CHANGELOG.md > "$notes"
+          }
+          v="${TAG#v}"
+          section "$v"
+          if [ ! -s "$notes" ] && [ "${v%.0}" != "$v" ]; then
+            section "${v%.0}"
+          fi
+          [ -s "$notes" ] || echo "CleanAppCache $TAG" > "$notes"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: CleanAppCache.dmg
+          body_path: ${{ runner.temp }}/notes.md

@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  # Manual run from the Actions page: builds the DMG and uploads it as an artifact.
+  workflow_dispatch:
+
+# The build needs only read access to the repository.
+permissions:
+  contents: read
+
+# Concurrent pushes to one branch must not tie up expensive macOS runners.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast and toolchain-free: fails within seconds on what the compiler cannot see.
+  # A missing localization key is not a compile error — `Localizer.s()` returns
+  # the key itself, and the UI shows "nav.storage". verify.sh runs the same script.
+  invariants:
+    name: Localization & design invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Localization parity, closed palette, one formatter
+        run: ./Scripts/check_invariants.sh
+
+  build-and-test:
+    name: Build & Test (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build debug (lib + app + tests, warnings are errors)
+        # One compilation of everything `swift test` needs. CI always builds
+        # clean, and only a clean build reports every warning; zero warnings
+        # is a stated invariant, enforced here.
+        run: swift build --build-tests -Xswiftc -warnings-as-errors
+
+      - name: Host
+        # macos-* runners are hypervisor guests with no SMC, IOReport or battery.
+        # SensorsTests skip hardware assertions there; this log line shows
+        # which mode they ran in.
+        run: sysctl kern.hv_vmm_present hw.perflevel0.logicalcpu || true
+
+      - name: Run tests
+        # PathGuardTests and DeletionRoutingTests guard against data loss:
+        # a failure here means a protected path can be deleted, or code
+        # deletes files without going through the guard.
+        run: swift test --skip-build
+
+      - name: Integration smoke checks
+        run: swift Scripts/integration_test.swift
+
+      - name: Build universal release .app + DMG
+        # build.py compiles the arm64+x86_64 release itself; a separate
+        # `swift build -c release` would be a second full compile into another directory.
+        run: python3 build.py
+
+      - name: Verify bundle
+        # Signature, hardened runtime, apple-events entitlement, universal binary,
+        # usage descriptions in Info.plist — the same script verify.sh runs.
+        run: ./Scripts/check_bundle.sh CleanAppCache.app
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # Ad-hoc signed and not notarized: for checking the build, not for
+          # distribution — Gatekeeper blocks this image.
+          name: CleanAppCache-dmg-unnotarized
+          path: CleanAppCache.dmg
+          if-no-files-found: error

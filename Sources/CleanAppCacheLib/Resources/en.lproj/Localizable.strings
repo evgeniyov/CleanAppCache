@@ -1,0 +1,1190 @@
+/* App */
+"app.name" = "CleanAppCache";
+
+/* Navigation */
+"nav.storage" = "Storage";
+"nav.monitor" = "Monitor";
+"nav.startup" = "Startup";
+"nav.leftovers" = "Leftovers";
+"section.system" = "System";
+"section.cleanup" = "Cleanup";
+"nav.largeFiles" = "Large Files";
+"nav.duplicates" = "Duplicates";
+"nav.cleanup" = "Smart Cleanup";
+"nav.developer" = "Developer";
+"nav.privacy" = "Privacy";
+"nav.systemJunk" = "System Junk";
+
+/* Common */
+"common.cancel" = "Cancel";
+"common.close" = "Close";
+"common.back" = "Back";
+"common.scan" = "Scan";
+"common.rescan" = "Rescan";
+"common.open" = "Open";
+"common.openInFinder" = "Open in Finder";
+"common.revealInFinder" = "Reveal in Finder";
+"common.quickLook" = "Quick Look";
+"common.retry" = "Retry";
+"common.deleteFmt" = "Delete Permanently (%@)";
+"common.selectAll" = "Select All";
+"common.clear" = "Clear";
+
+/* Language */
+"settings.language" = "Language";
+"settings.theme" = "Theme";
+"settings.title" = "Settings";
+"settings.subtitle" = "How the app and its menu-bar widget behave";
+"settings.maintenance" = "Maintenance";
+"settings.alerts" = "Monitor alerts";
+"settings.alerts.enable" = "Notify on thresholds";
+"settings.alerts.desc" = "Runs with the menu-bar sampler — works even when this window is closed.";
+"settings.alerts.cpuFmt" = "CPU above %d%%";
+"settings.alerts.tempFmt" = "CPU temp above %d°C";
+"settings.alerts.pressure" = "Memory pressure critical";
+"alert.cpu.title" = "High CPU load";
+"alert.cpu.bodyFmt" = "CPU has stayed at %1$d%% (limit %2$d%%). Check the processes in Monitor.";
+"alert.temp.title" = "High CPU temperature";
+"alert.temp.bodyFmt" = "CPU is at %1$d°C (limit %2$d°C).";
+"alert.pressure.title" = "Memory pressure critical";
+"alert.pressure.body" = "The system is low on usable memory and may feel slow. Consider closing heavy apps.";
+"settings.resetCaches" = "Reset caches";
+"settings.resetCaches.desc" = "Clears the stored directory sizes and the saved Smart Cleanup result, so the next scan recomputes everything from scratch, and erases the app's log, which names the files it removed.";
+"settings.loginItemFailed" = "macOS refused to change Open at Login. Check System Settings → General → Login Items.";
+"settings.resetCaches.done" = "Caches cleared";
+"settings.resetCaches.failed" = "Some caches could not be removed";
+"settings.openLogs" = "Open logs";
+"theme.dark" = "Dark";
+"theme.light" = "Light";
+"lang.system" = "System";
+"lang.en" = "English";
+"lang.ru" = "Russian";
+
+/* Full Disk Access */
+"fda.title" = "Grant Full Disk Access for accurate results";
+"fda.subtitle" = "Without it, some caches and protected folders can't be measured or cleaned.";
+"fda.openSettings" = "Open Settings";
+"fda.dismiss" = "Dismiss";
+
+/* Storage */
+"storage.title" = "Storage";
+"storage.analyzing" = "Analyzing storage…";
+"storage.unableRead" = "Unable to read storage info";
+"storage.freeSegment" = "Free";
+
+/* Storage detail */
+"detail.contents" = "Contents";
+"detail.search" = "Search…";
+"detail.openFolder" = "Open Folder";
+"detail.scanning" = "Scanning contents…";
+"detail.noItems" = "No items found";
+"detail.foldersOnly" = "Show only folders";
+"detail.systemData" = "System Data";
+"detail.tapToInspect" = "Tap an item to see details";
+"detail.modified" = "Modified";
+"detail.created" = "Created";
+"detail.lastOpened" = "Last Opened";
+"detail.drillDown" = "Open";
+"sort.sizeDesc" = "Size: Large to Small";
+"sort.sizeAsc" = "Size: Small to Large";
+"sort.nameAsc" = "Name: A to Z";
+"sort.nameDesc" = "Name: Z to A";
+
+/* Large files */
+"large.title" = "Large Files";
+"large.scanning" = "Scanning for large files…";
+"large.idle" = "Scan your home folder or disk for big files";
+"large.ageNote" = "Approximate: based on the last access/modification date, which macOS doesn't always update.";
+
+/* Duplicates */
+"dup.confirmTitleFmt" = "Move %@ to the Trash?";
+"dup.confirmMsg" = "A verified copy in each group stays. The others go to the Trash, so you can put them back. Changed or protected files are skipped for manual review.";
+"dup.confirmBytesFmt" = "Moves %@ to the Trash.";
+"dup.keepNewest" = "Keep the newest copy";
+"dup.keepOldest" = "Keep the oldest copy (usually the original)";
+"dup.keepsFmt" = "Newest copy stays: %@";
+"dscope.home" = "Home";
+"dscope.downloads" = "Downloads";
+"dscope.documents" = "Documents";
+"dscope.desktop" = "Desktop";
+
+/* Smart cleanup */
+"cleanup.title" = "Smart Cleanup";
+"cleanup.confirmTitleFmt" = "Clean up %@?";
+"cleanup.confirmMsgDefault" = "You can restore these items until you empty the Trash.";
+"cleanup.confirmAdminNote" = "macOS may ask for an administrator password for some items.";
+"cleanup.confirmMoveToTrash" = "Move to Trash";
+"cleanup.confirmPermanent" = "Delete permanently";
+"cleanup.adminPrompt" = "CleanAppCache wants to erase items in the Trash that belong to the system.";
+"cleanup.skippedLiveFmt" = "Skipped %@: in use right now";
+"cleanup.alreadyGoneFmt" = "Already missing when checked: %@.";
+"cleanup.cleanFmt" = "Clean %@";
+
+/* Scan categories */
+"cat.systemCache" = "System Cache";
+"cat.userCache" = "User Cache";
+"cat.browser" = "Browser Caches";
+"cat.logs" = "Logs";
+"cat.trash" = "Trash";
+"cat.tempFiles" = "Temporary Files";
+"cat.installers" = "Installers";
+
+/* Cleanup history */
+"history.title" = "Cleanup History";
+"history.show" = "History";
+"history.clear" = "Clear history";
+"history.source.smartCleanup" = "Smart Cleanup";
+"history.source.systemJunk" = "System Junk";
+"history.source.leftovers" = "Leftovers";
+"history.source.largeFiles" = "Large Files";
+"history.source.duplicates" = "Duplicates";
+"history.source.developer" = "Developer";
+"history.source.uninstaller" = "Uninstaller";
+"history.source.trash" = "Trash";
+"history.source.orphans" = "Orphaned";
+
+/* Developer */
+"dev.title" = "Developer";
+"dev.confirmMsg" = "These developer caches will be deleted permanently. Tools regenerate them on next build or install.";
+"dev.confirmOthersMsg" = "The other selected caches are deleted permanently too; tools regenerate them on the next build or install.";
+"dev.confirmLossMsg" = "Deleted permanently. These do not simply regenerate:";
+"dev.confirmLossLineFmt" = "• %1$@ — %2$@";
+"dev.caution" = "Risky";
+"dev.projectChangedFmt" = "Project changed %@";
+
+/* Developer: curated tool locations. Keys are dev.item.<definition id>.*;
+   `loss` exists for the unsafe ones and follows the name in the confirmation. */
+"dev.item.derivedData.title" = "Xcode DerivedData";
+"dev.item.derivedData.detail" = "Build intermediates and indexes — Xcode rebuilds them";
+"dev.item.archives.title" = "Xcode Archives";
+"dev.item.archives.detail" = "Archived app builds with their debug symbols — not recreated";
+"dev.item.archives.loss" = "the archived builds and their debug symbols are gone; crash reports from builds you shipped can no longer be symbolicated";
+"dev.item.iosDeviceSupport.title" = "iOS DeviceSupport";
+"dev.item.iosDeviceSupport.detail" = "Debug symbols per iOS version — copied again when a device connects";
+"dev.item.watchosDeviceSupport.title" = "watchOS DeviceSupport";
+"dev.item.watchosDeviceSupport.detail" = "Debug symbols per watchOS version — copied again when a watch connects";
+"dev.item.simulatorCaches.title" = "Simulator Caches";
+"dev.item.simulatorCaches.detail" = "CoreSimulator caches, dyld caches included — rebuilt when a simulator boots";
+"dev.item.swiftpm.title" = "SwiftPM Cache";
+"dev.item.swiftpm.detail" = "Swift Package Manager download cache";
+"dev.item.cocoapods.title" = "CocoaPods Cache";
+"dev.item.cocoapods.detail" = "Downloaded pod specs and archives";
+"dev.item.carthage.title" = "Carthage Cache";
+"dev.item.carthage.detail" = "Carthage build cache";
+"dev.item.npm.title" = "npm Cache";
+"dev.item.npm.detail" = "npm package cache (~/.npm)";
+"dev.item.yarn.title" = "Yarn Cache";
+"dev.item.yarn.detail" = "Yarn package cache";
+"dev.item.pip.title" = "pip Cache";
+"dev.item.pip.detail" = "Python pip download cache";
+"dev.item.gradleCaches.title" = "Gradle Cache";
+"dev.item.gradleCaches.detail" = "Gradle download and build cache";
+"dev.item.gradleWrappers.title" = "Gradle Wrappers";
+"dev.item.gradleWrappers.detail" = "Downloaded Gradle distributions";
+"dev.item.maven.title" = "Maven Repository";
+"dev.item.maven.detail" = "Downloaded and locally installed Maven artifacts (~/.m2/repository)";
+"dev.item.maven.loss" = "Locally installed artifacts may have no downloadable copy and cannot be regenerated automatically.";
+"dev.item.pubCache.title" = "Pub Cache";
+"dev.item.pubCache.detail" = "Dart and Flutter packages and globally activated tools";
+"dev.item.pubCache.loss" = "packages are downloaded again on the next build, which needs the network; globally activated Dart tools are removed";
+"dev.item.homebrew.title" = "Homebrew Cache";
+"dev.item.homebrew.detail" = "Downloaded bottles and source archives";
+"dev.item.goBuild.title" = "Go Build Cache";
+"dev.item.goBuild.detail" = "Go compiler build cache";
+"dev.item.goModules.title" = "Go Modules";
+"dev.item.goModules.detail" = "Downloaded Go module sources";
+"dev.item.goModules.loss" = "modules are downloaded again on the next build, which needs the network; versions withdrawn upstream do not come back";
+"dev.item.cargoRegistry.title" = "Cargo Registry Cache";
+"dev.item.cargoRegistry.detail" = "Rust crate download cache";
+"dev.item.android.title" = "Android Cache";
+"dev.item.android.detail" = "Android SDK cache";
+"dev.item.sdkman.title" = "SDKMAN Archives";
+"dev.item.sdkman.detail" = "Downloaded SDK archives";
+"dev.item.simulatorDevices.title" = "Simulator Devices";
+"dev.item.simulatorDevices.detail" = "Every simulator with its apps and data";
+"dev.item.simulatorDevices.loss" = "every simulator is reset: installed apps, their data and settings are gone";
+"dev.item.docker.title" = "Docker Disk Image";
+"dev.item.docker.detail" = "Docker.raw — every container, image and volume";
+"dev.item.docker.loss" = "all containers, images and volumes are deleted and do not come back";
+"dev.item.orbstack.title" = "OrbStack Disk Image";
+"dev.item.orbstack.detail" = "data.img — every OrbStack container and machine";
+"dev.item.orbstack.loss" = "all OrbStack containers and machines, with their files, are deleted and do not come back";
+
+/* Uninstaller */
+"apps.title" = "Uninstaller";
+"apps.uninstalledFmt" = "\"%@\" uninstalled";
+"apps.stillRunningFmt" = "Not removed — still open: %@";
+"apps.stillRunningHint" = "Quit it (it may be waiting for a document to be saved) and try again.";
+"apps.adminCancelledFmt" = "Not removed: %@";
+"apps.adminCancelledHint" = "The administrator password was not entered, so nothing of these apps was deleted.";
+"apps.freedFmt" = "Estimated freed: %@";
+"apps.search" = "Search applications…";
+"apps.scanning" = "Scanning applications…";
+"apps.idle" = "Scan for installed apps and their leftover files";
+"apps.versionFmt" = "Version %@";
+"apps.associated" = "Associated Files";
+"apps.totalSize" = "Total Size";
+"apps.confirmTitleFmt" = "Uninstall %@?";
+"apps.confirmMsgFmt" = "%1$@ will be permanently deleted along with %2$@ it owns. This cannot be undone.";
+"apps.uninstall" = "Uninstall";
+"apps.uninstallFmt" = "Uninstall (%@)";
+"apps.installedFmt" = "Installed %@";
+"apps.batchConfirmFmt" = "Uninstall %@?";
+"apps.batchConfirmMsg" = "The apps and their leftover files are deleted permanently, bypassing the Trash.";
+"apps.confirmAdminFmt" = "macOS will ask for an administrator password: your account cannot remove %@ on its own (installed by a package or the App Store).";
+"apps.confirmQuitFmt" = "Running apps are quit first: %@.";
+"apps.confirmSharedFmt" = "The settings and data of %@ stay: another copy of the app uses them.";
+"apps.adminPromptFmt" = "CleanAppCache wants to delete %@.";
+"apps.batchDoneFmt" = "Uninstalled %1$@ · approximately %2$@ freed";
+
+/* Orphaned background items */
+"nav.orphans" = "Orphaned";
+"orphan.remove" = "Move to Trash";
+"orphan.confirmMsg" = "The item's app is gone, so nothing should depend on it. You can restore it from the Trash.";
+"orphan.confirmAdminFmt" = "%@ in /Library — Finder will ask for an administrator password. A removed job stops launching after the next restart.";
+"orphan.scope.userAgent" = "User agent";
+"orphan.scope.globalAgent" = "Global agent";
+"orphan.scope.daemon" = "Daemon";
+"orphan.scope.helper" = "Privileged helper";
+"orphan.reason.binaryMissing" = "The program it launches no longer exists";
+"orphan.reason.appMissing" = "Its application has been deleted";
+
+/* Developer: project artifacts */
+"dev.mode.caches" = "Caches";
+"dev.mode.projects" = "Projects";
+"dev.projects.confirmMsg" = "Artifacts are deleted permanently. They regenerate on the next install/build (npm install, cargo build, swift build).";
+"dev.kind.node" = "node_modules";
+"dev.kind.cargo" = "Rust target";
+"dev.kind.swiftpm" = "SwiftPM .build";
+
+/* Storage breakdown category names */
+"bk.Applications" = "Applications";
+"bk.User Apps" = "User Apps";
+"bk.Documents" = "Documents";
+"bk.Downloads" = "Downloads";
+"bk.Desktop" = "Desktop";
+"bk.User Caches" = "User Caches";
+"bk.User Logs" = "User Logs";
+"bk.Movies" = "Movies";
+"bk.Music" = "Music";
+"bk.Pictures" = "Pictures";
+"bk.Other" = "Outside measured folders";
+
+/* Startup */
+"startup.runAtLoad" = "At login";
+"startup.disabled" = "Disabled";
+"startup.automationHint" = "To list every login item, allow CleanAppCache to control System Events. Some apps (Shottr, Bitrix, …) register here, not as launchd agents.";
+
+/* Leftovers */
+"leftovers.loc.prefs" = "Preferences";
+"leftovers.loc.caches" = "Caches";
+"leftovers.loc.appSupport" = "Application Support";
+"leftovers.loc.containers" = "Containers";
+"leftovers.loc.savedState" = "Saved state";
+"leftovers.loc.httpStorages" = "HTTP storage";
+"leftovers.loc.webKit" = "WebKit";
+
+/* Footer */
+"menubar.open" = "Open app";
+"menubar.quit" = "Quit";
+"menubar.showInBar" = "Show in menu bar";
+"menubar.metric.cpuLoad" = "CPU load";
+"menubar.metric.memLoad" = "Memory";
+"menubar.metric.gpuLoad" = "GPU load";
+"menubar.metric.cpuTemp" = "CPU temp";
+"menubar.metric.gpuTemp" = "GPU temp";
+"menubar.gpuTempUnavailable" = "No GPU temperature sensor on this Mac";
+
+/* Monitor */
+"monitor.title" = "System Monitor";
+"monitor.starting" = "Starting monitor…";
+"monitor.cpu" = "CPU";
+"monitor.ram" = "Memory";
+"monitor.gpu" = "GPU";
+"monitor.network" = "Network";
+"monitor.disk" = "Disk I/O";
+"monitor.battery" = "Battery";
+"monitor.ofTotal" = "of %@";
+"monitor.pressureNormal" = "Normal";
+"monitor.pressureWarning" = "Pressure";
+"monitor.pressureCritical" = "Critical";
+"monitor.uptimeFmt" = "up %@";
+"monitor.processes" = "Processes";
+"monitor.thermal.nominal" = "Normal";
+"monitor.thermal.fair" = "Warm";
+"monitor.thermal.hot" = "Hot";
+"monitor.thermal.serious" = "Throttling";
+"monitor.thermal.critical" = "Hot: throttled";
+"monitor.thermal.unavailable" = "Unavailable";
+"monitor.axisNow" = "now";
+"monitor.killConfirmFmt" = "Quit process \"%@\"?";
+"monitor.killAction" = "Quit";
+"monitor.killedFmt" = "Process \"%@\" terminated";
+"monitor.killFailedFmt" = "Couldn't terminate \"%@\"";
+"monitor.killPendingFmt" = "“%@” was asked to quit and is still running";
+"monitor.killPendingHint" = "It may be asking about unsaved documents in its own window.";
+"monitor.freqP" = "P-cores";
+"monitor.freqE" = "E-cores";
+"monitor.mhz" = "MHz";
+
+/* Toasts */
+"toast.deleted" = "Deleted";
+"toast.deletedFmt" = "Deleted %1$@ · approximately %2$@ freed";
+"toast.deleteFailedFmt" = "Failed to delete: %d";
+"trash.undo" = "Undo";
+"trash.movedFmt" = "To Trash: %1$d · %2$@";
+"trash.restoredFmt" = "Restored: %d";
+"trash.failedFmt" = "Couldn't move: %d";
+"trash.viaFinderFmt" = "Finder moved %@ with your password — bring them back from the Trash with Put Back.";
+"removal.needsAdminFmt" = "Needs an administrator password: %@";
+"removal.needsAdminHint" = "Your account cannot change the folder they are in. Remove them in Finder, which asks for the password.";
+"removal.adminCancelledFmt" = "Not removed: %@ — the password was not entered";
+"removal.automationDenied" = "CleanAppCache may not control Finder";
+"removal.automationHint" = "Protected items go to the Trash through Finder. Allow it in System Settings → Privacy & Security → Automation, then try again.";
+"removal.privacyFmt" = "macOS denied access: %@";
+"removal.fdaHint" = "Other apps' data is behind Full Disk Access. Allow CleanAppCache there in System Settings, then try again.";
+"removal.appManagementHint" = "macOS keeps apps from being changed by other apps. Allow CleanAppCache under App Management in System Settings, then try again.";
+"removal.openSettings" = "Open Settings";
+"removal.systemFmt" = "Protected by macOS: %@";
+"removal.systemHint" = "System Integrity Protection keeps these; nothing can remove them, and they need no cleaning.";
+"removal.lockedFmt" = "Locked: %@";
+"removal.lockedHint" = "Clear “Locked” in the Get Info window, then try again.";
+"removal.inUseFmt" = "In use: %@";
+"removal.inUseHint" = "Another app holds them open. Quit it and try again.";
+"trash.nothingRestored" = "Couldn't restore";
+
+/* Login Items */
+"loginitems.launchTitle" = "Launch CleanAppCache at Login";
+"loginitems.launchSubtitle" = "App will start automatically when you log in";
+"loginitems.status.enabled" = "Enabled — CleanAppCache will launch at login";
+"loginitems.status.requiresApproval" = "Awaiting approval — open System Settings to allow it";
+"loginitems.status.notRegistered" = "Not enabled";
+"loginitems.status.notFound" = "Not found — app may need to be reinstalled";
+"loginitems.status.translocated" = "Running from the disk image — move CleanAppCache to Applications and relaunch";
+
+/* Privacy */
+"privacy.idleMessage" = "Detects Safari, Chrome, Firefox, Brave and Arc history, cookies and site data.";
+"privacy.running" = "Running";
+"privacy.clearedFmt" = "%@ data deleted";
+"privacy.freedFmt" = "Estimated freed: %@";
+"privacy.failedFmt" = "Couldn't clear %@ data";
+
+/* System Junk */
+"systemJunk.title" = "System Junk";
+"systemJunk.subtitle" = "Build artifacts, device logs, backups and incomplete downloads";
+"systemJunk.confirmMsg" = "Selected items will be moved to the Trash.";
+
+"systemJunk.xcodeDerivedData.title" = "Xcode DerivedData";
+"systemJunk.xcodeDerivedData.desc" = "Build artifacts and indexes per project";
+"systemJunk.xcodeArchives.title" = "Xcode Archives";
+"systemJunk.xcodeArchives.desc" = "App archives created for distribution";
+"systemJunk.xcodeDeviceLogs.title" = "iOS Device Logs";
+"systemJunk.xcodeDeviceLogs.desc" = "Crash and diagnostic logs from connected devices";
+"systemJunk.iOSBackups.title" = "iOS Backups";
+"systemJunk.iOSBackups.desc" = "iPhone and iPad backups made via Finder";
+"systemJunk.quickLookCache.title" = "Quick Look Cache";
+"systemJunk.quickLookCache.desc" = "Preview thumbnails generated by macOS";
+"systemJunk.mailDownloads.title" = "Mail Downloads";
+"systemJunk.mailDownloads.desc" = "Attachments downloaded by Mail.app";
+"systemJunk.brokenDownloads.title" = "Incomplete Downloads";
+"systemJunk.brokenDownloads.desc" = "Unfinished .crdownload and .part files";
+
+/* Notifications */
+"notification.lowDisk.title" = "Low Disk Space";
+"notification.lowDisk.body" = "Only %1$d%% free (%2$@ remaining). Open CleanAppCache to free up space.";
+
+/* Onboarding */
+"onboard.fda" = "Grant Full Disk Access";
+"onboard.start" = "Get Started";
+
+/* System Data */
+"nav.systemData" = "System Data";
+"sysdata.title" = "System Data, Explained";
+"sysdata.scanning" = "Measuring hidden system storage…";
+"sysdata.idle" = "Find out what \"System Data\" is made of";
+"sysdata.sizeHidden" = "hidden";
+"sysdata.purgeable.title" = "Purgeable Space";
+"sysdata.purgeable.desc" = "Space macOS can free automatically when needed — caches and snapshots. Finder already counts it as available.";
+"sysdata.snapshots.title" = "Local Time Machine Snapshots";
+"sysdata.snapshots.desc" = "Hourly on-disk backups. They hold on to deleted files' blocks — the #1 reason deleting files doesn't free space.";
+"sysdata.swapVM.title" = "Swap & Sleep Image";
+"sysdata.swapVM.desc" = "Virtual-memory swap files and the hibernation image in /private/var/vm. Managed by macOS; shrinks after a restart.";
+"sysdata.systemCaches.title" = "System Caches";
+"sysdata.systemCaches.desc" = "/Library/Caches and per-user temp trees in /private/var/folders.";
+"sysdata.systemLogs.title" = "System Logs";
+"sysdata.systemLogs.desc" = "Diagnostic logs in /private/var/log and /Library/Logs.";
+"sysdata.spotlight.title" = "Spotlight Index";
+"sysdata.spotlight.desc" = "Search index. Requires Full Disk Access to measure.";
+"sysdata.updates.title" = "Staged Updates";
+"sysdata.updates.desc" = "Downloaded macOS updates waiting to install.";
+"sysdata.snapshotsList" = "Local snapshots";
+"sysdata.deleteSnapshot" = "Delete snapshot";
+"sysdata.thinAll" = "Reclaim snapshot space";
+"sysdata.thinAllHelp" = "Asks Time Machine to thin local snapshots and free their space (tmutil thinlocalsnapshots).";
+"sysdata.snapshotDeleted" = "Snapshot deleted";
+"sysdata.snapshotDeleteFailed" = "Couldn't delete snapshot";
+"sysdata.snapshotError.fda" = "Time Machine refused — Full Disk Access is required";
+"sysdata.snapshotError.notPermitted" = "Time Machine refused — the operation is not permitted for this account";
+"sysdata.thinDone" = "Time Machine is reclaiming snapshot space";
+"sysdata.explainer" = "Finder shows all of this as one \"System Data\" number. Sizes here are best-effort: snapshot sizes are hidden by APFS (they usually live inside Purgeable), and some trees need Full Disk Access. Swap and the sleep image are managed by macOS and can't be deleted directly — restarting clears swap.";
+
+/* Security audit */
+"nav.security" = "Security";
+"security.title" = "Security Audit";
+"security.scanning" = "Checking security settings…";
+"security.scoreLabel" = "Security score";
+"security.openSettings" = "Open Settings";
+"security.status.pass" = "OK";
+"security.status.fail" = "Action needed";
+"security.status.warn" = "Review";
+"security.status.unknown" = "Unknown";
+
+"sec.filevault.title" = "FileVault Disk Encryption";
+"sec.filevault.on" = "Your startup disk is encrypted.";
+"sec.filevault.off" = "Your disk is not encrypted.";
+"sec.filevault.fix" = "Turn on FileVault so data stays safe if the Mac is lost or stolen.";
+"sec.filevault.unknown" = "Couldn't determine the encryption state.";
+"sec.firewall.title" = "Application Firewall";
+"sec.firewall.on" = "The firewall is enabled.";
+"sec.firewall.off" = "The firewall is turned off.";
+"sec.firewall.fix" = "Enable the firewall to block unwanted incoming connections.";
+"sec.firewall.unknown" = "Couldn't determine the firewall state.";
+"sec.gatekeeper.title" = "Gatekeeper";
+"sec.gatekeeper.on" = "Only trusted, signed apps are allowed to run.";
+"sec.gatekeeper.off" = "Gatekeeper is disabled — unsigned apps can run.";
+"sec.gatekeeper.fix" = "Re-enable Gatekeeper to block unverified apps.";
+"sec.gatekeeper.unknown" = "Couldn't determine the Gatekeeper state.";
+"sec.sip.title" = "System Integrity Protection";
+"sec.sip.on" = "SIP is protecting system files.";
+"sec.sip.off" = "SIP is disabled — system files are unprotected.";
+"sec.sip.fix" = "Re-enable SIP from Recovery (csrutil enable) unless you truly need it off.";
+"sec.sip.unknown" = "Couldn't determine the SIP state.";
+"sec.autologin.title" = "Automatic Login";
+"sec.autologin.on" = "The Mac logs in without a password at startup.";
+"sec.autologin.off" = "A password is required at startup.";
+"sec.autologin.fix" = "Turn off automatic login so a password is needed to sign in.";
+"sec.guest.title" = "Guest Account";
+"sec.guest.on" = "The guest account is enabled.";
+"sec.guest.off" = "The guest account is disabled.";
+"sec.guest.fix" = "Disable the guest account unless you specifically need it.";
+"sec.updates.title" = "Automatic Update Checks";
+"sec.updates.on" = "macOS checks for updates automatically.";
+"sec.updates.off" = "Automatic update checks are off.";
+"sec.updates.unknown" = "Couldn't read the update setting.";
+"sec.updates.fix" = "Enable automatic update checks to receive security fixes promptly.";
+"sec.screenlock.title" = "Password After Screen Saver / Sleep";
+"sec.screenlock.on" = "A password is required after sleep or screen saver.";
+"sec.screenlock.off" = "No password is required after sleep or screen saver.";
+"sec.screenlock.unknown" = "Couldn't determine the screen-lock setting on this macOS.";
+"sec.screenlock.fix" = "Require a password immediately after sleep or screen saver.";
+
+/* Trash-based confirmations — these operations are reversible, so the wording
+   must not promise permanence. */
+"trash.confirmMsg" = "They go to the Trash, so you can put them back — from the undo prompt or from the Trash itself. If macOS protects an item, Finder asks for your password first.";
+"common.moveToTrashFmt" = "Move to Trash (%@)";
+"dup.staleSkippedFmt" = "Changed since the scan and left untouched: %@.";
+"dup.staleGroupsSkippedFmt" = "Skipped %@ — files changed since the scan, rescan first.";
+"guard.blockedFmt" = "Refused for safety: %@.";
+
+/* MARK: - StateView */
+"state.clean.title" = "Clean";
+"state.clean.desc" = "%1$@ · last scan %2$@";
+"state.failure.title" = "Couldn’t read";
+"state.failure.desc" = "%1$@ · code %2$@";
+"state.copyDetails" = "Copy details";
+"state.noAccess.title" = "Missing access";
+"state.scanAnyway" = "Scan anyway";
+"state.resetFilter" = "Reset filter";
+
+/* MARK: - Table chrome */
+"table.showAll" = "show all";
+"table.moreFmt" = "%@ more";
+"sidebar.disk" = "Disk";
+
+/* MARK: - Smart Cleanup hero column and category table */
+"cleanup.consequence.trash" = "Files go to the Trash — you can put them back.";
+"cleanup.col.category" = "Category";
+"cleanup.col.share" = "Share";
+"cleanup.col.size" = "Size";
+"cleanup.col.count" = "Items";
+"cleanup.scanned" = "7 categories across caches, logs, browsers and the Trash";
+"footnote.moreFmt" = "%1$@ more · %2$@";
+"footnote.showAll" = "Show all";
+"toast.cached.title" = "Showing a saved result";
+"toast.cached.bodyFmt" = "Scanned %@ · the disk may have changed since";
+"toast.cached.action" = "Rescan";
+
+"detail.sizeUnavailable" = "Size could not be measured — the folder is too large or unreadable.";
+
+/* MARK: - Per-screen keys */
+"apps.a11y.detailsFmt" = "Show details for “%@”";
+"apps.a11y.revealFmt" = "Reveal “%@” in Finder";
+"apps.a11y.selectFmt" = "Select “%@” for batch uninstall";
+"apps.assocFmt" = "%1$@ · %2$@";
+"apps.col.app" = "Application";
+"apps.col.size" = "Size";
+"apps.col.version" = "Version";
+"apps.noAccessMissing" = "Without Full Disk Access, associated files in protected ~/Library folders stay invisible and sizes are under-reported.";
+"apps.noAssociated" = "No associated files found";
+"apps.sharedDataFmt" = "These files are shared with “%@”, another copy of this app, and stay when this copy is removed.";
+"apps.sort.name" = "Name";
+"apps.sort.size" = "Size";
+"apps.uninstalling" = "Uninstalling…";
+"consequence.permanent" = "deletion is permanent, bypassing the Trash";
+"dev.noAccess.missing" = "Without Full Disk Access, disk images kept inside other apps' containers (Docker, OrbStack) stay invisible. Everything else can still be scanned.";
+"dup.noAccessFmt" = "“%@” can’t be read without permission — duplicates in it stay invisible.";
+"dup.scopeLabel" = "Where";
+"large.a11y.reveal" = "Show “%@” in Finder";
+"large.a11y.select" = "Select “%@” for the Trash";
+"large.cappedFmt" = "Only the %1$@ largest matches are listed — the rest are smaller than %2$@";
+"large.checkedFmt" = "%1$@ · files over %2$@";
+"large.col.file" = "File";
+"large.hiddenSelectedFmt" = "The filter hides %@ you selected";
+"large.keyHints" = "Space — Quick Look · ⌘↩ — Reveal in Finder";
+"leftovers.confirmBatchFmt" = "Move the leftover files of %@ to the Trash?";
+"leftovers.noAccess" = "Without Full Disk Access other apps’ containers and protected caches stay invisible, so leftovers can be missed.";
+"menubar.toggleFmt" = "Show %@ in the menu bar";
+"privacy.checked" = "History, cookies and site data for Safari, Chrome, Firefox, Brave and Arc";
+"privacy.col.browser" = "Browser";
+"privacy.confirmClearFmt" = "Delete %@ history and site data?";
+"privacy.confirmClearMsg" = "Cookies and site data are deleted for good — you will be signed out of some sites and have to sign in again. History goes with them, bypassing the Trash: there is no way to restore it. Firefox history is cleared inside its database, so its bookmarks stay. Passwords, bookmarks, autofill and extensions' own storage are kept; what an extension saves in a browser's Local Storage is shared with the sites and is deleted with theirs.";
+"privacy.confirmQuitFmt" = "Quit %@ and delete its history and site data?";
+"privacy.confirmQuitMsg" = "The browser is asked to quit first and may prompt about unsaved pages. Nothing is deleted until it is gone. Cookies, site data and history are then deleted for good, bypassing the Trash: you will be signed out of some sites. Firefox history is cleared inside its database, so its bookmarks stay. Passwords, bookmarks, autofill and extensions' own storage are kept; what an extension saves in a browser's Local Storage is deleted with the sites' data.";
+"privacy.deleteForGoodFmt" = "Delete for good (%@)";
+"privacy.noAccessMissing" = "Without Full Disk Access, Safari history stays invisible and this section can report “clean” when it is not.";
+"privacy.quitAndClearFmt" = "Quit and delete (%@)";
+"privacy.quitFailedFmt" = "%@ is still running — quit it manually and try again";
+"settings.action.grant" = "Grant…";
+"settings.action.reset" = "Reset";
+"settings.action.showApplications" = "Open Applications";
+"settings.alerts.cpuLabel" = "CPU load above";
+"settings.alerts.tempLabel" = "CPU temperature above";
+"settings.chooseFmt" = "Choose %@";
+"settings.clearHistory.confirmMsg" = "The journal is deleted permanently — the freed-space total starts again from zero.";
+"settings.clearHistory.confirmTitle" = "Clear the cleanup history?";
+"settings.history.statsFmt" = "%1$@ · approximately %2$@ freed in total";
+"settings.language.desc" = "Switches instantly, no restart";
+"settings.maintenance.irreversible" = "Resetting the cache and clearing the journal are irreversible — both ask first.";
+"settings.resetCaches.confirmTitle" = "Reset the size caches?";
+"settings.resetCaches.short" = "Speeds up repeat scans";
+"settings.section.appearance" = "Appearance";
+"settings.versionFmt" = "Version %@";
+"startup.onDemand" = "On demand";
+"systemJunk.checked" = "7 categories across Xcode artefacts, device logs, iOS backups, Quick Look and Mail";
+"systemJunk.noAccess" = "Mail attachments and iOS backups live in protected folders. Without Full Disk Access this scan reports them as empty.";
+
+/* MARK: - History, Orphans, Storage, System Data */
+"history.col.freed" = "Est. freed";
+"history.col.items" = "Items";
+"history.col.section" = "Section";
+"history.col.when" = "When";
+"history.emptyDesc" = "Recent cleanups appear here with their date, section and estimated space freed.";
+"history.openSectionFmt" = "Open “%@”";
+"orphan.col.type" = "Type";
+"storage.col.category" = "Category";
+"storage.col.share" = "Share";
+"storage.col.size" = "Size";
+"storage.open" = "open";
+"sysdata.a11y.explainFmt" = "About “%@”";
+"sysdata.a11y.snapshotFmt" = "Snapshot of %@";
+"sysdata.checked" = "purgeable space, snapshots, swap, system caches and logs";
+"sysdata.col.action" = "Action";
+"sysdata.col.component" = "Component";
+"sysdata.confirmDeleteMsg" = "The snapshot is deleted permanently, bypassing the Trash. If it is the only copy of a file, there will be nothing to restore from.";
+"sysdata.confirmDeleteTitleFmt" = "Delete the snapshot of %@?";
+"sysdata.deleteAction" = "Delete";
+"sysdata.grantAccess" = "Grant access";
+"sysdata.note.cleanedInCleanup" = "Cleared in the Cleanup section";
+"sysdata.note.sizeNeedsAccess" = "Size unavailable without full disk access";
+"sysdata.note.snapshotsUnreadable" = "Couldn't read the snapshot list — Time Machine refused to answer";
+"sysdata.note.systemManaged" = "Managed by the system";
+"sysdata.thinAllFmt" = "Delete all snapshots (%@)";
+"sysdata.thinConsequence" = "Snapshots are deleted permanently, bypassing the Trash.";
+
+/* MARK: - Monitor metric strip */
+"monitor.col.process" = "Process";
+"monitor.noSensor" = "no sensor";
+
+
+/* MARK: - Security, Storage detail, Menu bar */
+"detail.a11y.openFmt" = "Open %@";
+"detail.a11y.rowFmt" = "%1$@, %2$@ — show details";
+"detail.emptyOrBlocked" = "This folder listed nothing. Either it is empty, or macOS is not letting the app read it — usually that means Full Disk Access.";
+"detail.escHint" = "ESC — close";
+"detail.inside" = "Inside";
+"detail.ofDiskFmt" = "%@ of disk";
+"detail.openInUninstaller" = "Open in Uninstaller";
+"detail.other" = "Other";
+"detail.sharesFmt" = "%1$@ of folder · %2$@ of disk";
+"menubar.atLeastOne" = "At least one metric always stays in the menu bar.";
+"menubar.chooseMetrics" = "Choose metrics…";
+"menubar.cleanNothingFmt" = "Nothing was cleaned — %@ could not be removed. Run the cleanup from the window to see why.";
+"menubar.cleanNothing" = "Nothing was cleaned.";
+"menubar.cleanFailedFmt" = "%@ could not be removed.";
+"menubar.cleaning" = "Cleaning…";
+"menubar.diskFree" = "Free on disk";
+"menubar.pressureFmt" = "Pressure: %@";
+"menubar.quickClean" = "Quick cleanup";
+"cleanup.selectionChanged" = "Scan results have changed. Review the files and confirm cleanup again.";
+"cleanup.refreshBeforeCleaning" = "Refreshing saved results before cleanup. Review the new scan and confirm again.";
+"sec.autologin.unknown" = "Could not determine the automatic login setting.";
+"sec.guest.unknown" = "Could not determine the guest account setting.";
+"menubar.quickClean.needsScan" = "No scan yet — opens the app";
+"menubar.scanning" = "Scanning…";
+"menubar.temp.hot" = "Hot";
+"menubar.temp.normal" = "Normal";
+"menubar.temp.warm" = "Warm";
+"menubar.tick" = "every 5 s";
+"risk.unmeasured" = "NOT MEASURED";
+"security.a11y.openSettingsFmt" = "Open the settings pane for %@";
+"security.a11y.rowFmt" = "%1$@ — %2$@";
+"security.unknown" = "%d unknown";
+"security.unknownReason" = "Couldn’t read this setting — the check returned no answer.";
+"security.willFind" = "Read-only checks: FileVault, firewall, Gatekeeper, SIP, automatic login, guest account, software updates and the screen lock.";
+
+/* MARK: - First-run safety rules */
+"onboard.access.body" = "Without Full Disk Access macOS hides part of the caches, and the app can neither measure nor clean them. Other permissions are asked for only when a feature needs them: Automation to read login items and to move protected files through Finder, and an administrator password for system files and apps.";
+"onboard.access.granted" = "Full Disk Access granted";
+"onboard.access.later" = "You can grant it later in Settings — the app works without it, it just sees less.";
+"onboard.headline" = "What this app will and will not delete";
+"onboard.lede" = "Three rules it follows on every screen. Read them once — nothing here works against them.";
+"onboard.rule1.body" = "Files go to the Trash, not straight off the disk, so you can put them back. Only a few actions are permanent and have no undo: uninstalling apps, developer caches and build artifacts, browser privacy data, emptying the Trash and deleting Time Machine snapshots. Where macOS protects a file, the app says so and asks for your password first.";
+"onboard.rule1.title" = "Everything is reversible by default";
+"onboard.rule2.body" = "Only what is safe to remove is ticked for you. Anything that needs a decision — another user's data, system folders, media libraries — is refused outright, whatever the screen asked for.";
+"onboard.rule2.title" = "Risky items are never preselected";
+"onboard.rule3.body" = "Uninstalling finds leftovers by the app's identifier, never by a similar name. A folder called “Chrome something” is not removed because you uninstalled Chrome.";
+"onboard.rule3.title" = "Apps are matched by bundle ID";
+
+/* MARK: - Result panel and toasts */
+"celebrate.done" = "CLEANUP FINISHED";
+"celebrate.restore" = "Restore from Trash";
+"celebrate.subtitleFmt" = "%1$@ free on disk · approximately %2$@ freed in recorded cleanups";
+"toast.details" = "Details";
+
+"common.done" = "Done";
+
+"monitor.a11y.expandFmt" = "Expand the %@ group";
+"monitor.a11y.killFmt" = "Quit %@";
+
+"cleanup.hero.clean" = "Clean";
+
+/* ===== "Paper" theme screens ===== */
+
+/* Navigation */
+"section.uninstaller" = "Uninstaller";
+"nav.apps" = "Applications";
+
+/* Units */
+"unit.b" = "B";
+"unit.bytes" = "bytes";
+"unit.kb" = "KB";
+"unit.mb" = "MB";
+"unit.gb" = "GB";
+"unit.tb" = "TB";
+"unit.perSec" = "%@/s";
+
+/* Common */
+"common.updatedAt" = "updated %@";
+"common.checkedAt" = "checked %@";
+"common.rescan.tooltip" = "Rescan";
+"common.deselect" = "Clear";
+"common.resetFilter" = "Reset filter";
+"common.resetFilters" = "Reset filters";
+"common.all" = "All";
+"common.selected" = "Selected";
+"a11y.sortAscending" = "ascending";
+"a11y.sortDescending" = "descending";
+"a11y.on" = "on";
+"a11y.off" = "off";
+
+/* Storage */
+"storage.subtitleFmt" = "%1$@ · %2$@ · %3$@";
+"storage.card.used" = "Used";
+"storage.card.free" = "Free";
+"storage.card.cleanable" = "Cleanable";
+"storage.card.snapshots" = "Snapshots";
+"storage.distribution" = "Distribution";
+"storage.detail.shareFmt" = "%1$@ · %2$@ of the disk";
+
+/* Monitor */
+"monitor.thermal.tooltip" = "Thermal state: %@";
+"monitor.temp.cpu" = "CPU";
+"monitor.temp.gpu" = "GPU";
+"monitor.temp.batt" = "BATT";
+"monitor.detail.cores" = "Cores";
+"monitor.detail.coreSplitFmt" = "%1$d × E   %2$d × P";
+"monitor.detail.taskQueue" = "Task queue";
+"monitor.coresLabel" = "Per-core load";
+"monitor.detail.taskQueueFmt" = "%1$@ of %2$@";
+"monitor.detail.threads" = "Threads";
+"monitor.detail.memPressure" = "Memory pressure";
+"monitor.detail.ssdLife" = "SSD life";
+"monitor.detail.battCapacity" = "Capacity vs new";
+"monitor.detail.localIp" = "Local address";
+"monitor.detail.interface" = "Interface";
+"monitor.detail.session" = "This session";
+"monitor.detail.appMemory" = "Used by apps";
+"monitor.detail.fileCache" = "File cache";
+"monitor.detail.wired" = "Wired";
+"monitor.detail.compressed" = "Compressed";
+"monitor.detail.swap" = "Swap";
+"monitor.detail.displays" = "Displays";
+"monitor.detail.sharedMemory" = "Memory (shared)";
+"monitor.idle" = "Idle";
+"monitor.idleFmt" = "no activity for %d s";
+"monitor.chart.titleFmt" = "%1$@, %2$@";
+"monitor.range.1m" = "1m";
+"monitor.range.10m" = "10m";
+"monitor.range.1h" = "1h";
+"monitor.batteryWearFmt" = "%1$@ worn over %2$@. Replacement is worth considering once capacity drops below 80%%.";
+
+/* Risk groups */
+"risk.group.safe" = "Safe to delete";
+"risk.group.recreates" = "Check before deleting";
+"risk.group.permanent" = "No way back";
+
+/* Smart Cleanup */
+"cleanup.found" = "Found";
+"cleanup.freeOnDisk" = "Free space on disk";
+"cleanup.toDelete" = "To delete";
+"cleanup.onlySafe" = "Safe only";
+"cleanup.deselectAll" = "Clear all";
+"cleanup.trashWarning" = "The Trash is in the selection — those files are deleted for good.";
+"cleanup.foundSubtitleFmt" = "Found %1$@ in %2$@ · checked %3$@";
+"cleanup.idleSubtitle" = "Caches, logs, temporary files, the Trash and installers";
+"cleanup.projectionFmt" = "%1$@ → %2$@";
+"cleanup.afterTrashFmt" = "%@ more once the Trash is emptied — what goes to the Trash still takes up space.";
+"cleanup.lastCleanupFmt" = "Last cleanup %@";
+"cleanup.foundDetailFmt" = "%1$@ · %2$@";
+"cleanup.nothingSelected" = "nothing selected";
+"cleanup.willFind" = "We will check system and app caches, logs, temporary files, the Trash and installers.";
+"cleanup.scanFailed" = "Scan failed";
+
+/* Scan results */
+"scan.note.reversible" = "Moved to the Trash — you can put it back";
+"scan.note.privacy" = "Deleted for good: you will be signed out of some sites";
+"scan.note.startup" = "The apps stay where they are — only autostart is turned off";
+"scan.col.share" = "Share";
+"scan.col.size" = "Size";
+"scan.col.item" = "Item";
+"scan.subtitleFmt" = "Found %1$@ · %2$@ · %3$@";
+/* Startup items: the section has no volume for the middle slot — it frees nothing */
+"scan.subtitlePairFmt" = "Found %1$@ · %2$@";
+"scan.sizeFilter.100mb" = "from 100 MB";
+"scan.sizeFilter.500mb" = "from 500 MB";
+"scan.sizeFilter.1gb" = "from 1 GB";
+"scan.sizeFilter.5gb" = "from 5 GB";
+
+/* Large files */
+"large.col.kind" = "Kind";
+"large.col.changed" = "Modified";
+"large.col.size" = "Size";
+"large.scope.home" = "searching the home folder";
+"large.scope.disk" = "searching the whole disk";
+"large.wholeDisk" = "Whole disk";
+"large.toTrash" = "Move to Trash";
+"large.age.week" = "Past week";
+"large.age.month" = "Past month";
+"large.age.quarter" = "Older than 3 months";
+"large.age.year" = "Older than a year";
+"large.size.500mb" = "from 500 MB";
+"large.size.1gb" = "from 1 GB";
+"large.size.5gb" = "from 5 GB";
+"large.size.10gb" = "from 10 GB";
+"large.partialTitle" = "The search was cut short";
+"large.partialHint" = "It hit its time or file limit, so the list ranks only what it reached. Narrow the scope or raise the minimum size and search again.";
+"kind.video" = "Video";
+"kind.archive" = "Archive";
+"kind.diskImage" = "Disk image";
+"kind.audio" = "Audio";
+"kind.data" = "Data";
+"kind.project" = "Project";
+
+/* Uninstaller */
+"apps.staleFilter" = "Not opened in a while";
+"apps.col.lastUsed" = "Last opened";
+"apps.col.files" = "Files";
+/* Subtitle: "143 apps · 138.7 GB · 4 apps not opened in over three months". The
+   third clause drops out when nothing is stale — a subtitle may not read "0"
+   — which is why the line has two forms. */
+"apps.subtitleFmt" = "%1$@ · %2$@ · %3$@";
+"apps.subtitleNoStaleFmt" = "%1$@ · %2$@";
+"apps.staleCountFmt" = "%@ not opened in over three months";
+"apps.deleteWarning" = "The app and its files are deleted for good";
+
+/* Security */
+"security.checks" = "Checks";
+"security.flaggedFmt" = "%1$d of %2$d flagged";
+"security.risk" = "What you risk";
+"security.fix" = "What to do";
+"security.verdict.great" = "Excellent";
+"security.verdict.good" = "Good";
+"security.verdict.issues" = "Some findings";
+"security.subtitle" = "Audit of macOS settings · read only";
+"security.plate.on" = "Enabled";
+"security.plate.off" = "Disabled";
+"security.plate.warn" = "Attention";
+"security.plate.unknown" = "No data";
+"security.topRiskFmt" = "%1$@: %2$@ Of everything found, this one matters most — start here.";
+"security.allClear" = "Every check passed — there is nothing to change.";
+
+/* Security — "what you risk" / "what to do" for flagged checks */
+"sec.filevault.risk" = "Your account password guards the login screen, not the disk itself. If the Mac is lost or opened up, the drive can be read from another computer: mail, documents and saved passwords, all of it.";
+"sec.filevault.todo" = "System Settings → Privacy & Security → FileVault. Encryption runs in the background, so you can keep working. Store the recovery key somewhere other than the Mac.";
+"sec.firewall.risk" = "On a shared network — a café, a coworking space, a hotel — anyone on the same Wi-Fi can knock on your Mac's open ports: local development servers, screen sharing, AirPlay. They have no password, but they can see which services are up and work through known vulnerabilities.";
+"sec.firewall.todo" = "System Settings → Network → Firewall. It leaves outgoing connections alone — day to day you will not notice the difference.";
+"sec.gatekeeper.risk" = "macOS stops checking signatures and notarization: a downloaded app launches silently, with no question about where it came from. A tampered installer looks exactly like the real one.";
+"sec.gatekeeper.todo" = "Restore the check with sudo spctl --master-enable in Terminal, and allow the apps you need one at a time through “Open” in their context menu.";
+"sec.sip.risk" = "System Integrity Protection keeps system files off limits even to root. While it is off, a process that gains root can settle into the system so deeply that reinstalling apps will not remove it.";
+"sec.sip.todo" = "Restart into Recovery, open Terminal, run csrutil enable, then boot normally.";
+"sec.autologin.risk" = "The Mac lands straight in your account at power-on — no password asked. Pressing the power button is enough to reach your mail, your keychain and your files.";
+"sec.autologin.todo" = "System Settings → Users & Groups → “Automatic login” → “Off”.";
+"sec.guest.risk" = "A guest session opens with no password, and file and printer sharing is visible from inside it. For a stranger it is a ready-made way into the network your Mac sits on.";
+"sec.guest.todo" = "System Settings → Users & Groups → “Guest User”: turn off login and access to shared folders.";
+"sec.updates.risk" = "Security updates close holes that are already public: one specially crafted page or file is enough to run someone else's code. With automatic checks off, you are the last to hear that a fix exists.";
+"sec.updates.todo" = "System Settings → General → Software Update: turn automatic checks back on. Installing usually takes about ten minutes and one restart.";
+"sec.screenlock.risk" = "The display sleeps but the session stays open: a touch of the trackpad is enough to reach your mail, your messengers and your keychain. In an office or a café that is the price of a minute away from the desk.";
+"sec.screenlock.todo" = "System Settings → Lock Screen: “Require password after screen saver begins or display is turned off” → “Immediately”.";
+
+/* History */
+"history.totalAllTime" = "Estimated space freed in recorded cleanups";
+"history.equivalentFmt" = "About %1$@ of 4K video, or %2$@.";
+"history.perCleanup" = "By cleanup";
+"history.bySection" = "Where it came from";
+"history.insightFmt" = "“%1$@” gives back the most — %2$@ over %3$@.";
+"history.runCleanup" = "Run a cleanup";
+"history.details" = "details";
+"history.subtitleFmt" = "Cleanup journal · last one %@";
+"history.chartHint" = "click a column";
+"history.stat.average" = "on average";
+
+/* Settings */
+"settings.menubar.metrics" = "Menu bar metrics";
+"settings.menubar.style" = "Style";
+"settings.menubar.style.stack" = "Two lines";
+"settings.menubar.style.inline" = "One line";
+"settings.menubar.style.gauge" = "With a gauge";
+"settings.menubar.preview" = "How it looks";
+"settings.density" = "Table density";
+"settings.density.regular" = "Regular";
+"settings.density.compact" = "Compact";
+"settings.density.desc" = "Row height in Monitor and Uninstaller.";
+"settings.menubar.metrics.desc" = "Shown next to the clock";
+"settings.menubar.hint.stack" = "Label on top, value underneath. Turn on “CPU temperature” alongside “CPU load” and it moves above the load.";
+"settings.menubar.hint.stackTemp" = "Temperature on top, load underneath — both within the width of one value.";
+"settings.menubar.hint.inline" = "Everything on one line — takes more room, but reads from a distance.";
+"settings.menubar.hint.gauge" = "A vertical gauge left of the value — the level reads without the number.";
+"menubar.short.cpuLoad" = "CPU";
+"menubar.short.memLoad" = "RAM";
+"menubar.short.gpuLoad" = "GPU";
+"menubar.short.cpuTemp" = "CPU°";
+"menubar.short.gpuTemp" = "GPU°";
+"unit.celsius" = "°C";
+
+/* States */
+"state.notScanned.title" = "This section has not been scanned";
+"state.noMatch.title" = "Nothing matched";
+"state.noMatch.desc" = "The “%1$@” filter left none of the %2$d items.";
+
+/* Toast */
+"toast.gotIt" = "Got it";
+"storage.snapshotsUnit" = "";
+"storage.pickCategory" = "Pick a category to see what it is made of.";
+
+/* Monitor — screen strings */
+"monitor.subtitle.coresFmt" = "%1$@: %2$d performance + %3$d efficiency";
+"monitor.axis.spanFmt" = "−%@ min";
+"monitor.col.cpu" = "CPU";
+"monitor.col.memory" = "Memory";
+"monitor.col.shareCpu" = "CPU share";
+"monitor.col.shareMemory" = "Memory share";
+"monitor.searchProcess" = "Search processes";
+"monitor.procFilteredFmt" = "%1$@ of %2$@";
+"monitor.detail.receive" = "Received";
+"monitor.detail.transmit" = "Sent";
+"monitor.detail.read" = "Read";
+"monitor.detail.write" = "Write";
+"monitor.detail.readWrite" = "read and write";
+"monitor.detail.temperature" = "Temperature";
+"monitor.detail.temperatureAverage" = "Average temperature";
+"monitor.detail.frequency" = "Frequency";
+"monitor.detail.load" = "Utilisation";
+"monitor.detail.charge" = "Charge";
+"monitor.detail.cycles" = "Charge cycles";
+"monitor.detail.power" = "Power";
+"monitor.power.adapter" = "Power adapter";
+"monitor.power.battery" = "On battery";
+
+/* Universal result screen — captions of the four sections */
+"scan.action.removeSelected" = "Remove selected";
+
+"dup.describes" = "exact SHA-256 match, showing the space wasted";
+"dup.col.copies" = "Copies";
+"dup.contextFmt" = "%1$@ at %2$@ each";
+"dup.action" = "Delete the extra copies";
+"dup.note" = "The extra copies go to the Trash — one copy in each group is kept";
+"dup.willFind" = "We group files by size, then compare their SHA-256 hashes.";
+
+"leftovers.describes" = "folders and files of apps that are gone";
+"leftovers.col.removed" = "App removed";
+"leftovers.vendorInstalled" = "Vendor still installed — check first";
+"leftovers.willFind" = "We group what is left behind in ~/Library by bundle ID.";
+
+"orphan.describes" = "agents and daemons with nothing left to launch";
+"orphan.willFind" = "We look for LaunchAgents, daemons and helpers with nothing to launch.";
+"orphan.confirmBatchFmt" = "Move the selected items (%d) to the Trash?";
+
+"startup.describes" = "what starts together with the system";
+"startup.describesDenied" = "what starts together with the system · login items stay hidden without Automation access";
+"startup.col.impact" = "Startup impact";
+"startup.action" = "Turn off selected";
+"startup.willFind" = "We collect login items, user agents and system daemons.";
+"startup.confirmDisableFmt" = "Turn off the selected items (%d)?";
+"startup.adminPromptFmt" = "CleanAppCache wants to turn off the startup of %@.";
+"startup.confirmAdminFmt" = "%@ run as system services — macOS will ask for an administrator password.";
+"startup.turnedOffFmt" = "Turned off: %@";
+"startup.turnOffFailedFmt" = "Couldn't turn off %@";
+/* Startup cost in seconds is not available — macOS reports none. The section shows what is
+   measurable: the size of the program an entry launches, and how many start at login. */
+"startup.col.program" = "Program";
+"startup.atLoginFmt" = "%@ at login";
+"startup.scope.loginItem" = "login item";
+"startup.scope.userAgent" = "user";
+"startup.scope.globalAgent" = "system";
+"startup.scope.daemon" = "daemon";
+
+/* Universal result screen: context columns and the action */
+"scan.col.what" = "What it is";
+"scan.col.source" = "Source";
+"scan.col.tool" = "Tool";
+"scan.action.clean" = "Clean selected";
+
+/* System Junk: who left the category behind — the "Source" column */
+"systemJunk.xcodeDerivedData.source" = "Xcode";
+"systemJunk.xcodeArchives.source" = "Xcode";
+"systemJunk.xcodeDeviceLogs.source" = "Xcode";
+"systemJunk.iOSBackups.source" = "Finder";
+"systemJunk.quickLookCache.source" = "Quick Look";
+"systemJunk.mailDownloads.source" = "Mail";
+"systemJunk.brokenDownloads.source" = "Downloads";
+
+/* Developer: tool caches and project artifacts in one list */
+"dev.describes" = "package-manager caches and build artifacts";
+"dev.willFind" = "We will check tool caches and build artifacts inside your projects.";
+
+/* Privacy: what actually leaves the browser */
+"privacy.item" = "History and site data";
+
+/* Scan parameters in the screen header (Duplicates, Large Files).
+   Not a filter over what was found — the threshold and the reach of the next
+   search. The ladder is spelled out, like the neighbouring "scan.sizeFilter.*"
+   and "large.size.*": `Fmt` prints a measurement with fixed decimals
+   ("5.00 MB"), and these are choices, not measurements. The bytes behind each
+   label are decimal, like every other size unit in the app. */
+"scan.minSize" = "Minimum file size";
+"scan.min.1mb" = "1 MB";
+"scan.min.5mb" = "5 MB";
+"scan.min.50mb" = "50 MB";
+"scan.min.100mb" = "100 MB";
+"scan.min.500mb" = "500 MB";
+"scan.min.1gb" = "1 GB";
+"scan.min.5gb" = "5 GB";
+
+/* Monitor's right-hand panel — the rows backed by a real source.
+   Disk: operations per second and the drive's name from IOKit, the status from
+   the NVMe controller's own critical-warning field. Battery: capacity and
+   adapter wattage read from the battery and the adapter themselves. */
+"monitor.detail.ops" = "Operations/s";
+"monitor.detail.device" = "Device";
+"monitor.detail.smart" = "SMART status";
+"monitor.smart.ok" = "Verified";
+"monitor.smart.warning" = "Warnings reported";
+/* Half of the drive-wear note — "84 TB written of an estimated 2200 TB". No API
+   publishes the denominator, so this states only what the drive reported. */
+"monitor.detail.ssdWrittenFmt" = "%@ written in total.";
+"monitor.detail.capacity" = "Full-charge capacity";
+"monitor.mah" = "mAh";
+"monitor.power.adapterWattsFmt" = "Power adapter, %@ W";
+
+/* Monitor "External address" — the app's only network request. The footnote under
+   the Network list says where the address came from; the second one says why
+   there is a dash instead. */
+"monitor.detail.extIp" = "External address";
+"monitor.detail.extIp.note" = "The external address comes from a request to an outside service and is refreshed when the network changes. It can be switched off in Settings.";
+"monitor.detail.extIp.off" = "The external address is not being requested. Switch it on in Settings if you need it.";
+"settings.externalIp" = "Show external IP address";
+"settings.externalIp.desc" = "The app's only network request: the address is asked of an outside service while Monitor's Network panel is open. Off by default.";
+
+/* Menu-bar layouts */
+"settings.menubar.style.value" = "Single value";
+"settings.menubar.style.dotted" = "Dot separated";
+"settings.menubar.style.labeled" = "Caption and value";
+"settings.menubar.style.graph" = "Sparkline";
+"settings.menubar.style.cores" = "Per-core bars";
+"settings.menubar.hint.value" = "Only the first pinned metric.";
+"settings.menubar.hint.dotted" = "Every pinned metric, separated by a dot.";
+"settings.menubar.hint.labeled" = "A dimmed caption before the value.";
+"settings.menubar.hint.graph" = "The last minute as a line, plus the current value.";
+"settings.menubar.hint.cores" = "Load per core, plus the total.";
+
+/* Cleanup outcome: space freed for good versus moved to the Trash */
+"outcome.freedFmt" = "Estimated freed: %@";
+"outcome.trashedFmt" = "%@ moved to the Trash";
+"outcome.bothFmt" = "Freed %1$@ · %2$@ moved to the Trash";
+"outcome.trashNote" = "That space is released when the Trash is emptied.";
+"celebrate.erasedFmt" = "%@ deleted for good; that space is free now.";
+"celebrate.trashedFmt" = "%@ is in the Trash; that space is released when the Trash is emptied.";
+"history.col.trashed" = "Trashed";
+"history.trashedTotalFmt" = "Another %@ was moved to the Trash and is not counted as freed.";
+"cleanup.partialSelection" = "partly selected";
+
+"detail.sizingProgressFmt" = "Checked: %d of %d";
+"detail.partialSize" = "Measured portion";
+
+"storage.folderScopes" = "Categories follow folders, not file types. Apps, builds and caches inside Documents count as Documents. Hard links belong to the first matching folder.";
+
+"storage.partialScopes" = "≥ means a lower bound: some folders were unreadable or the scan was incomplete. — means unmeasured. The remaining balance includes these gaps.";
+
+"storage.residualExplanation" = "The balance of used space outside the measured folders. It can include app data, other user folders, system data, snapshots and unreadable locations. It is not a junk estimate and has no single folder to browse. APFS shared blocks and purgeable space can differ from folder allocation totals.";
+
+"storage.allocationMismatch" = "Folder allocations exceed reported used space. APFS clones, shared blocks, purgeable capacity and changes during scanning can prevent reconciliation. The bar shows used/free space; folder estimates are shown below.";
+
+"storage.unmeasured" = "Size not measured";
+
+"detail.diskFolders" = "Disk folders";
+
+"detail.exploreUnassigned" = "Explore remaining folders";
+
+"detail.outsideCategories" = "Folders outside categories";
+
+"detail.unassignedScope" = "Folder candidates outside the main categories. Categorized folders are excluded; hidden folders are visible and private stores are not scanned. Sizes explain only the measured part of the balance; unreadable areas, snapshots and APFS differences remain separate. Hard links count once in the measured aggregate.";
+
+"detail.diskScope" = "Filesystem browser — not a breakdown of Unassigned. Folder sizes include their contents and do not change category totals. Other mounted volumes and symlink targets are not scanned. Hard links count once in the measured aggregate.";
+
+"detail.measureFolders" = "Measure list";
+
+"detail.openSubfolder" = "Open a folder to measure its contents.";
+
+"detail.scanBudget" = "Measures allocated disk space with a 20-second time limit.";
+
+"detail.incompleteScan" = "Incomplete: some sizes are unknown or lower bounds. You can inspect readable folders or rescan.";
+
+"detail.accessDenied" = "Access denied";
+
+"detail.externalVolume" = "Other volume";
+
+"detail.alreadyCategorized" = "Contains categorized folders";
+
+"detail.notDirectory" = "This path is not a directory";
+
+"detail.unavailable" = "Unavailable or moved";
+
+"detail.partial" = "Partial";
+
+"detail.scanCancelled" = "Scan cancelled";
+
+"detail.notMeasuredYet" = "Sizes have not been measured yet. Open a folder or measure the list.";
+
+"settings.lowDisk.enable" = "Notify when disk space is low";
+"settings.lowDisk.desc" = "When less than 10% of the disk is free, at most once a day. Independent of monitor alerts.";
+
+"apps.sharedContainersKept" = "Shared app-group containers and scripts are kept because other apps may use them.";
+
+"apps.changedSinceScanFmt" = "Apps changed and were kept: %@";
+"apps.rescanBeforeRemoval" = "Scan again and review the list before uninstalling.";
+
+"removal.changedSinceScanFmt" = "Kept after rechecking: %@";
+"removal.rescanHint" = "The items or their removal eligibility changed. Scan again before the next cleanup.";
+
+"detail.sharedAllocation" = "Sizes show each item’s share of allocated space: hard links to the same file are counted in one row only.";
+
+// Scan exclusions
+"scan.skipped.titleFmt" = "Skipped: %@";
+"scan.skipped.explanation" = "These paths are not offered for cleanup and are not included in cleanable space. Close the owning app or resolve access issues, then rescan.";
+"scan.skipped.cached" = "Reasons are from the saved scan; rescan to check their current state.";
+"scan.skipped.legacyTitle" = "Scan coverage needs a fresh check";
+"scan.skipped.legacy" = "This older result has no complete skip explanations. Rescan before treating it as a complete check.";
+"scan.skipped.reasonCountFmt" = "%@ · %@";
+"scan.skipped.omittedFmt" = "%@ more paths are omitted from the details (report limit or private cached paths). Counts include them.";
+"scan.skipped.noCleanable" = "No items available for cleanup";
+"scan.skipped.inUse" = "Owning app is running";
+"scan.skipped.recent" = "Recently modified — scan again later";
+"scan.skipped.safetyProtected" = "Protected by cleanup safety rules";
+"scan.skipped.systemProtected" = "Protected by macOS";
+"scan.skipped.unreadable" = "Could not fully read or measure this path";
+"scan.skipped.verificationLimit" = "Too many entries to safely verify activity";
+"scan.skipped.symbolicLink" = "Symbolic link; target is not scanned for cleanup";
+"scan.skipped.ownLogs" = "CleanAppCache is using its own logs";
+"scan.skipped.cleanupTitleFmt" = "Last cleanup skipped: %@";
+"scan.skipped.cleanupExplanation" = "These paths were left untouched by the last cleanup. Reasons describe their state at that time; the scan below shows current availability.";
+
+"dev.item.uv-cache.title" = "uv package cache";
+"dev.item.uv-cache.detail" = "Downloads and built Python packages. Cleaned by uv with its cache lock; active uv processes are kept running.";
+"dev.item.uv-cache.loss" = "Cached packages must be downloaded or built again. Environments linked to cache files with symlinks can stop working.";
+"dev.uv.unavailable" = "uv was not found. Install or restore uv to clean its cache safely.";
+"dev.uv.configuration" = "The uv cache location could not be verified. Check the uv configuration and scan again.";
+"dev.uv.changed" = "The uv cache changed or its contents could not be verified. Nothing was cleaned; scan again.";
+"dev.uv.busy" = "uv is using its cache. Finish the uv command or the tool it launched, then try again.";
+"dev.uv.unsupported" = "This uv version does not provide the required cache-lock protection. Update uv before cleaning.";
+"dev.uv.failed" = "uv could not finish cache cleanup. The cache was kept under uv control; scan again to check what remains.";
+"dev.uv.cleanedFmt" = "Processed %@; cache size decreased by %@. Free space may differ because files can share disk blocks.";
+
+"scan.skipped.managedCache" = "This cache needs its owning tool; use uv cleanup in Developer for uv caches";
+
+"storage.unexplainedBalance" = "Outside measured folders";
+"storage.measuredScopesFmt" = "Measured category folders: %@";
+"storage.balanceNotInventory" = "The balance above is subtraction, not a measured file list. Explore folders below to identify actual paths.";
+"storage.systemUnmeasured" = "System / APFS allocation: not separately measured. Snapshots, shared blocks and purgeable space cannot be assigned to ordinary folders here.";
+"detail.measuredAtFmt" = "Measured: %@";
+"detail.savedAtFmt" = "Saved measurement: %@ · refresh to update";
+"detail.coverageFmt" = "Checked %d of %d · incomplete: %d · restricted: %d";
+"detail.privateMetadata" = "Private store: metadata only";
+"detail.timeBudget" = "Time budget reached; measured lower bound retained";
+"detail.aboutSizes" = "About size measurements";
+"detail.folderOverview" = "Folder overview";
+"detail.itemDetails" = "Item details";
+"detail.largestEntries" = "Largest measured items";
+"detail.filteredCountFmt" = "Showing %d of %d items";
+"detail.staleListing" = "Saved listing · refresh to update";
+"cleanup.expandCategoryFmt" = "Show files in %@";
+"cleanup.collapseCategoryFmt" = "Hide files in %@";
+"cleanup.copyPath" = "Copy Path";
+"history.originalOutcome" = "At the time of cleanup";
+"history.removedOfFmt" = "Removed %@ of %@";
+"history.notAttemptedFmt" = "Not processed: %@";
+"history.noReport" = "Only totals were recorded for this operation.";
+"detail.measureFolder" = "Measure This Folder";
+"detail.deepMeasurement" = "Separate folder measurement";
+"detail.deepMeasurementHelp" = "Measure this folder with its own 60-second limit.";
+
+"storage.trend.title" = "Free space history";
+"storage.trend.subtitle" = "Free space readings and cleanup activity on the startup disk";
+"storage.trend.week" = "7 days";
+"storage.trend.month" = "30 days";
+"storage.trend.date" = "Date";
+"storage.trend.collecting" = "Readings are saved when you open Storage. The trend appears after readings from different hours.";
+"storage.trend.cleanups" = "Cleanup activity";
+"cleanup.alwaysSkip" = "Always skip";
+"cleanup.removeExclusion" = "Remove exclusion";
+"cleanup.exclusions" = "Smart Cleanup exclusions";
+"cleanup.exclusionsHint" = "Right-click a file or folder in Smart Cleanup and choose Always skip.";
+"scan.skipped.userExcluded" = "Excluded by you";
+"cleanup.search" = "Search by name or path";
+"cleanup.onlySelected" = "Only selected";
+"cleanup.filterScope" = "Cleanup includes selected items hidden by the filter.";
+"cleanup.noMatches" = "No files match the current filters.";
+"scan.skipped.runningAppsFmt" = "Running: %@";
+"scan.skipped.openPrivacy" = "Full Disk Access Settings";
+"storage.startupVolume" = "Startup disk";
+"storage.selectVolume" = "Select a disk";
+"storage.volumeCapacity" = "Capacity";
+"storage.volumeUnavailable" = "Could not read the selected volume.";
+"detail.searchHere" = "Search this folder";
+"detail.findLargeFilesHere" = "Find Large Files Here";
+"detail.findDuplicatesHere" = "Find Duplicates Here";
+"searchProfiles.title" = "Profiles";
+"searchProfiles.chooseFolder" = "Choose search folder…";
+"searchProfiles.save" = "Save search profile…";
+"searchProfiles.saveAction" = "Save";
+"searchProfiles.name" = "Profile name";
+"searchProfiles.remove" = "Remove profile";
