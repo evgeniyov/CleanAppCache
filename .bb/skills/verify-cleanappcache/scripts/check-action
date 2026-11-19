@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""Authorize one resolved AX action against the current Audit window."""
+
+from itertools import product
+import json
+import os
+from pathlib import Path
+import plistlib
+import re
+import stat
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
+
+
+PROTECTED_KEYS = (
+    "large.toTrash", "common.moveToTrashFmt", "common.deleteFmt",
+    "cleanup.hero.clean", "cleanup.cleanFmt", "cleanup.confirmMoveToTrash",
+    "cleanup.confirmPermanent", "menubar.quickClean", "scan.action.clean",
+    "dup.action", "dup.keepNewest", "dup.keepOldest", "apps.uninstall",
+    "apps.uninstallFmt", "startup.action", "scan.action.removeSelected",
+    "orphan.remove", "sysdata.deleteAction", "sysdata.deleteSnapshot",
+    "sysdata.thinAllFmt", "privacy.deleteForGoodFmt", "privacy.quitAndClearFmt",
+    "settings.action.reset", "common.clear", "history.clear",
+    "monitor.killAction", "monitor.a11y.killFmt",
+)
+ACTION_WORDS = re.compile(
+    r"^(?:move to trash|empty trash|delete|clean|uninstall|turn off|disable|"
+    r"remove|erase|clear|reset|quit|keep the newest copy|keep the oldest copy)"
+    r"(?:\b|…)", re.IGNORECASE,
+)
+SAFE_LOOKALIKES = ("common.resetFilter", "common.resetFilters", "state.resetFilter")
+FIXTURE_KEYS = ("large.toTrash", "dup.action", "dup.keepNewest", "dup.keepOldest")
+NAME_FIELDS = ("AXTitle", "AXDescription", "AXIdentifier")
+FORMAT = re.compile(r"%%|%(?:(\d+)\$)?(?:hh|ll|h|l|z|t|j)?([@diu])")
+PLURAL = re.compile(r"%#@(\w+)@")
+
+
+class Refusal(Exception):
+    pass
+
+
+def require(condition, reason):
+    if not condition:
+        raise Refusal(reason)
+
+
+def format_parts(template, argument, literal):
+    parts = []
+    end = index = 0
+    for match in FORMAT.finditer(template):
+        parts.append(literal(template[end:match.start()]))
+        if match[0] == "%%":
+            parts.append(literal("%"))
+        else:
+            position, specifier = match.groups()
+            parts.append(argument(int(position) - 1 if position else index, specifier))
+            index += 1
+        end = match.end()
+    parts.append(literal(template[end:]))
+    return "".join(parts)
+
+
+def pattern(template, *arguments):
+    def argument(index, specifier):
+        if arguments:
+            return arguments[index]
+        return r".+" if specifier == "@" else r"[-+]?\d+"
+
+    return format_parts(template, argument, re.escape)
+
+
+def plural_forms(entry, category=None):
+    template = entry["NSStringLocalizedFormatKey"]
+    variables = tuple(dict.fromkeys(PLURAL.findall(template)))
+    choices = []
+    for name in variables:
+        rule = entry[name]
+        if category:
+            choices.append([rule.get(category, rule["other"])])
+        else:
+            choices.append([value for key, value in rule.items() if not key.startswith("NSString")])
+    return [PLURAL.sub(lambda match: values[match[1]], template)
+            for variants in product(*choices) for values in [dict(zip(variables, variants))]]
+
+
+def load_localizations(resources):
+    files = sorted(resources.glob("*.lproj/Localizable.strings"))
+    require(files, f"no shipped localizations found in {resources}")
+    localizations = {}
+    for file in files:
+        strings = json.loads(subprocess.check_output(
+            ["/usr/bin/plutil", "-convert", "json", "-o", "-", str(file)]))
+        dictionary = file.with_suffix(".stringsdict")
+        plurals = plistlib.loads(dictionary.read_bytes()) if dictionary.exists() else {}
+        localizations[file.parent.stem] = strings, plurals
+    return localizations
+
+
+def protected_forms(strings, plurals, key):
+    # Foundation gives the stringsdict entry priority when both files have the key.
+    return plural_forms(plurals[key]) if key in plurals else [strings[key]]
+
+
+def count_label(plurals, key, count, category):
+    template, = plural_forms(plurals[key], category)
+    return format_parts(template, lambda *_: str(count), str)
+
+
+def names(node):
+    return {node[key] for key in NAME_FIELDS if node.get(key)}
+
+
+def main_window(nodes):
+    for index, node in enumerate(nodes):
+        if node["role"] == "AXWindow" and node.get("AXIdentifier") == "main":
+            depth = node["depth"]
+            end = next((i for i in range(index + 1, len(nodes))
+                        if nodes[i]["depth"] <= depth), len(nodes))
+            return range(index + 1, end)
+    raise Refusal("the main Audit AXWindow is missing")
+
+
+def path_spellings(path):
+    forms = {str(path)}
+    if str(path).startswith("/private/var/"):
+        forms.add(str(path).removeprefix("/private"))
+    if path.is_relative_to(Path.home()):
+        forms.add("~/" + str(path.relative_to(Path.home())))
+    return forms
+
+
+def check_fixtures(scratch, kind, suffixes):
+    folder = scratch / "fixtures" / kind
+    require(folder.is_dir() and folder.resolve() == folder,
+            f"{kind} fixture folder is missing or symlinked")
+    files = [folder / f"cac-verify-{scratch.name}-{suffix}.bin" for suffix in suffixes]
+    require(set(folder.iterdir()) == set(files), f"{kind} folder does not contain exactly this run’s fixtures")
+    for file in files:
+        info = file.lstat()
+        manifest = scratch / (file.name + ".identity")
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and
+                manifest.is_file() and not manifest.is_symlink() and
+                manifest.read_text().strip() == f"{info.st_dev}:{info.st_ino}",
+                f"fixture identity changed: {file}")
+    return folder, files
+
+
+def prove_selection(nodes, key, target_index, strings, plurals, scratch):
+    large = key == "large.toTrash"
+    kind = "large-files" if large else "duplicates"
+    suffixes = ("large",) if large else ("a", "b")
+    main_indices = main_window(nodes)
+    main = [nodes[i] for i in main_indices]
+    one_file = count_label(plurals, "plural.files", 1, "one")
+    if key in ("large.toTrash", "dup.action"):
+        require(target_index in main_indices, "the action is outside the main Audit window")
+    else:
+        confirm = pattern(strings["dup.confirmTitleFmt"], re.escape(one_file))
+        require(any(node["role"] in ("AXStaticText", "AXWindow") and
+                    any(re.fullmatch(confirm, label) for label in names(node) | {node.get("AXValue") or ""})
+                    for node in nodes),
+                "the Duplicate confirmation does not show exactly one fixture copy")
+    titles = {node.get("AXValue") for node in main if node["role"] == "AXStaticText"}
+    expected_title = strings["large.title" if large else "nav.duplicates"]
+    require(expected_title in titles, f"the {expected_title} screen is not visible")
+    folder, files = check_fixtures(scratch, kind, suffixes)
+    paths = path_spellings(folder)
+    buttons = [node for node in main if node["role"] == "AXButton"]
+    one_selected = one_file if large else count_label(plurals, "plural.items", 1, "one")
+    require(strings["common.selected"] in titles and one_selected in titles,
+            "the AX tree does not show exactly one selected file or group")
+    scope = "|".join(map(re.escape, paths)) if large else re.escape(strings["dup.describes"])
+    summary = pattern(strings["scan.subtitleFmt"], re.escape(one_selected), r"[^·]+", f"(?:{scope})")
+    require(any(text and re.fullmatch(summary, text) for text in titles),
+            "scan results do not show one result with the expected fixture scope")
+    if large:
+        # The header counts every visible result and the action bar counts the full
+        # selection, including hidden rows. One result and one selection with no
+        # hidden selection proves the one represented result is the selected file.
+        hidden = pattern(strings["large.hiddenSelectedFmt"])
+        require(not any(text and re.fullmatch(hidden, text) for text in titles),
+                "the result filter hides selected files")
+        file = files[0]
+        rows = [re.escape(f"{file.name}, {path}, ") for path in path_spellings(file)]
+    else:
+        require(any(kind in names(node) and node.get("AXHelp") in paths for node in buttons),
+                "Duplicates scope does not show this run’s exact fixture folder")
+        older, newer = files
+        count = count_label(plurals, "plural.copies", 2, "few")
+        context = pattern(strings["dup.contextFmt"], re.escape(count), r".+?")
+        rows = [
+            re.escape(f"{older.name}, ") + pattern(strings["dup.keepsFmt"], re.escape(kept))
+            + re.escape(f", {directory}, ") + context + ", "
+            for kept in path_spellings(newer) for directory in paths
+        ]
+    require(sum(any(re.match(row, node.get("AXDescription") or "") for row in rows)
+                for node in buttons) == 1,
+            "the AX tree does not show one matching fixture row")
+
+
+def authorize(request, localizations, scratch):
+    mode, args, nodes = (request[key] for key in ("mode", "args", "nodes"))
+    if mode == "key":
+        if args == ["escape"]:
+            return
+        # Return and Space can activate a default confirmation with no selector.
+        # Only the focused native file picker has a documented keyboard route.
+        require(request["focusedWindow"] == "open-panel" and
+                (args == ["g", "cmd+shift"] or args == ["return"] or
+                 (len(args) == 2 and args[0] == "text" and args[1].startswith("/")
+                  and all(character.isprintable() for character in args[1]))),
+                "keyboard input can activate a confirmation. Use Escape or a named AX control")
+        return
+
+    require(mode in ("press", "press-prefix") and len(args) == 2, "unknown action")
+    target_index = request.get("targetIndex")
+    target = nodes[target_index] if target_index is not None else {}
+    labels = names(target)
+    selector = args[1]
+    if not target:
+        # An idle screen has no cleanup button. Still refuse an explicit unsafe
+        # request with the fixture requirement, without resolving another target.
+        labels.add(selector)
+    protected = {form for strings, plurals in localizations.values() for key in PROTECTED_KEYS
+                 for form in protected_forms(strings, plurals, key)}
+    patterns = [pattern(form) for form in protected]
+    safe = {strings[key] for strings, _ in localizations.values() for key in SAFE_LOOKALIKES}
+    destructive = {label for label in labels if
+                   (label not in safe and ACTION_WORDS.match(label)) or
+                   any(re.fullmatch(regex, label, re.IGNORECASE) for regex in patterns)}
+    if not destructive:
+        return
+    action = min(destructive)
+    routes = [(key, strings, plurals) for strings, plurals in localizations.values()
+              for key in FIXTURE_KEYS if action in protected_forms(strings, plurals, key)]
+    require(len(destructive) == 1 and routes,
+            f"{action!r} has no supported fixture-only route. Use Cancel or Escape to dismiss a confirmation")
+    require(target.get("role") == "AXButton" and action in names(target),
+            f"{action!r} needs a visible button and a scan scoped to this run’s fixtures")
+    for key, strings, plurals in routes:
+        try:
+            prove_selection(nodes, key, target_index, strings, plurals, scratch)
+            return
+        except Refusal as error:
+            reason = str(error)
+    raise Refusal(reason)
+
+
+def self_test(localizations):
+    def request(label, nodes, mode="press"):
+        selector = label[:10] if mode == "press-prefix" else label
+        return {"mode": mode, "args": ["AXButton", selector], "targetIndex": len(nodes),
+                "nodes": nodes + [{"role": "AXButton", "depth": 2, "AXTitle": label}]}
+
+    with TemporaryDirectory(prefix="cac-action-test-") as temp:
+        scratch = Path(temp).resolve()
+        folder = scratch / "fixtures" / "large-files"
+        folder.mkdir(parents=True)
+        file = folder / f"cac-verify-{scratch.name}-large.bin"
+        file.touch()
+        info = file.lstat()
+        (scratch / (file.name + ".identity")).write_text(f"{info.st_dev}:{info.st_ino}\n")
+
+        for language, (strings, plurals) in localizations.items():
+            one_file = count_label(plurals, "plural.files", 1, "one")
+
+            def large_window(scope):
+                summary = format_parts(strings["scan.subtitleFmt"],
+                                       lambda index, _: (one_file, "105 MB", scope)[index], str)
+                return [
+                    {"role": "AXWindow", "depth": 1, "AXIdentifier": "main"},
+                    *({"role": "AXStaticText", "depth": 2, "AXValue": title} for title in
+                      (strings["large.title"], strings["common.selected"], one_file, summary)),
+                    {"role": "AXButton", "depth": 2, "AXDescription": f"{file.name}, {file}, 105 MB"},
+                ]
+
+            home = large_window(strings["large.scope.home"])
+            tested = 0
+            for key in PROTECTED_KEYS:
+                for template in protected_forms(strings, plurals, key):
+                    label = format_parts(template, lambda _, spec: "105 MB" if spec == "@" else "1", str)
+                    for mode in ("press", "press-prefix"):
+                        try:
+                            authorize(request(label, home, mode), localizations, scratch)
+                        except Refusal:
+                            tested += 1
+                        else:
+                            raise Refusal(f"self-test allowed {language} {key}: {label!r} via {mode}")
+            print(f"{language}: refused {tested} destructive actions on Home ({len(PROTECTED_KEYS)} keys)")
+            label = strings["large.toTrash"]
+            authorize(request(label, large_window(str(folder))), localizations, scratch)
+            print(f"{language}: allowed {label!r} with exact fixture scope, selection and identity")
+
+
+if __name__ == "__main__":
+    try:
+        resources = Path(__file__).resolve().parents[4] / "Sources/CleanAppCacheLib/Resources"
+        localizations = load_localizations(resources)
+        if sys.argv[1:] == ["--self-test"]:
+            self_test(localizations)
+        else:
+            require(not sys.argv[1:], "use check-action --self-test or pass AX JSON on stdin")
+            authorize(json.load(sys.stdin), localizations, Path(os.environ["CAC_VERIFY_SCRATCH"]))
+    except (Refusal, OSError, KeyError, ValueError, subprocess.CalledProcessError) as error:
+        sys.exit(f"cac-verify: Refusing action: {error}.")

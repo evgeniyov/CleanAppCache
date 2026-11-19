@@ -1,0 +1,266 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+
+scripts=$(cd "$(dirname "$0")" && pwd -P)
+repo=$(cd "$scripts/../../../.." && pwd -P)
+audit_id=com.cleanappcache.CleanAppCache.Audit
+usage() {
+    cat <<'USAGE'
+Usage: cac-verify COMMAND [ARGS]
+  new                          Print a fresh CAC_VERIFY_RUN value
+  build                        Build the Audit bundle in scratch
+  launch [--screen SCREEN]     Launch the Audit bundle (default: monitor)
+  doctor                       Check host permissions, build, PID and window
+  paths                        Print scratch and evidence paths
+  fixtures large-files|duplicates
+  fixture-link large-files|duplicates
+  cleanup                      Stop this run and remove its scratch
+
+Driver commands use the current Audit PID:
+  activate, raise, tree, windows, find, wait-for, press, press-prefix,
+  set, focus, key, select-folder, shot
+USAGE
+}
+
+die() { printf 'cac-verify: %s\n' "$*" >&2; exit 1; }
+
+command=${1:-help}
+case "$command" in
+    help|-h|--help) usage; exit ;;
+    new) /usr/bin/uuidgen | tr '[:upper:]' '[:lower:]'; exit ;;
+esac
+shift
+run_id=${CAC_VERIFY_RUN:-}
+[[ $run_id =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+    die 'Set CAC_VERIFY_RUN to the output of cac-verify new.'
+tmp=$(cd "${TMPDIR:-/tmp}" && pwd -P)
+root="$tmp/verify-cleanappcache"
+run="$root/$run_id"
+bundle="$run/CleanAppCache Audit.app"
+executable="$bundle/Contents/MacOS/CleanAppCache"
+plist="$bundle/Contents/Info.plist"
+fixture_root="$run/fixtures"
+owner="$run/.cac-verify-owner"
+evidence_record="$run/evidence-path"
+evidence="${BB_THREAD_STORAGE:-$HOME/Library/Caches}/verify-cleanappcache/$run_id/evidence"
+[[ ! -L "$root" && ! -L "$run" ]] || die 'Refusing symlinked scratch directory.'
+driver_dir=${MACOS_GUI_DRIVE_DIR:-$HOME/.bb/skills/macos-gui-drive}
+driver="$driver_dir/scripts/macos-gui-drive"
+
+require_driver() {
+    [[ -x "$driver" && -f "$driver_dir/scripts/axdrive.swift" ]] ||
+        die "Missing macos-gui-drive skill at $driver_dir/scripts/. Install it or set MACOS_GUI_DRIVE_DIR."
+}
+
+drive() {
+    require_driver
+    MACOS_GUI_RUN_DIR="$run" MACOS_GUI_EVIDENCE_DIR="$evidence" "$driver" "$@"
+}
+
+head_timestamp() { git -C "$repo" show -s --format=%ct HEAD; }
+plist_value() { /usr/libexec/PlistBuddy -c "Print :$1" "$plist"; }
+
+require_owner() {
+    local id identity created
+    [[ ! -L "$root" && -d "$run" && ! -L "$run" && -f "$owner" && ! -L "$owner" ]] &&
+        read -r id identity created < "$owner" &&
+        [[ "$id" == "$run_id" && "$identity" == "$(stat -f '%d:%i' "$run")" &&
+           "$created" =~ ^[0-9]+$ ]] ||
+        die "Refusing scratch without a matching build ownership marker: $run."
+    [[ -f "$evidence_record" && ! -L "$evidence_record" ]] ||
+        die 'Missing build-time evidence path. Scratch retained.'
+    evidence=$(cat "$evidence_record")
+    [[ "$evidence" == /* ]] || die 'Invalid build-time evidence path. Scratch retained.'
+}
+
+audit_record() {
+    local expected="$run/gui-drive/executable"
+    [[ -f "$expected" && "$(cat "$expected")" == "$executable" ]] ||
+        die "Recorded executable does not match $executable."
+}
+
+build() {
+    require_driver
+    [[ "$evidence" == /* ]] || die 'BB_THREAD_STORAGE must be absolute.'
+    mkdir -p "$root"
+    mkdir "$run" || die 'Run already exists. Clean it up or allocate a fresh run ID.'
+    printf '%s %s %s\n' "$run_id" "$(stat -f '%d:%i' "$run")" "$(date +%s)" > "$owner"
+    evidence=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$evidence")
+    printf '%s\n' "$evidence" > "$evidence_record"
+    mkdir "$run/source"
+    drive prepare
+    local revision build_number
+    revision=$(git -C "$repo" rev-parse HEAD)
+    build_number=$(git -C "$repo" show -s --format=%ct "$revision")
+    printf '%s\n' "$revision" > "$run/revision"
+    # Copy current sources, including edits and untracked files, without importing the operator's bundle.
+    for item in build.py Package.swift Sources Resources Tests entitlements.plist; do
+        /usr/bin/ditto "$repo/$item" "$run/source/$item"
+    done
+    if [[ -f "$repo/Package.resolved" ]]; then
+        /usr/bin/ditto "$repo/Package.resolved" "$run/source/Package.resolved"
+    fi
+    (
+        cd "$run/source"
+        unset VERSION BUILD_NUMBER DEVELOPER_ID NOTARY_PROFILE SIGN_IDENTITY
+        python3 build.py --build-number "$build_number" --sign-identity -
+    )
+    /usr/bin/ditto "$run/source/CleanAppCache.app" "$bundle"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $audit_id" "$plist"
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleName CleanAppCache Audit' "$plist"
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName CleanAppCache Audit' "$plist"
+    /usr/bin/codesign --force --deep -s - "$bundle"
+    /usr/bin/codesign --verify --deep --strict "$bundle"
+    printf 'Audit bundle: %s\n' "$bundle"
+}
+
+doctor() {
+    local result=0 version build_number expected revision
+    require_driver
+    if [[ -d "$run" ]]; then
+        require_owner
+        if [[ -f "$run/gui-drive/pid" ]]; then
+            audit_record
+            drive status || result=1
+        else
+            drive doctor || result=1
+        fi
+    else
+        printf '%s\n' 'Accessibility and Screen Recording: unknown (build first)'
+        result=1
+    fi
+    expected=$(head_timestamp)
+    revision=$(git -C "$repo" rev-parse HEAD)
+    if [[ -f "$plist" && -f "$run/revision" ]] &&
+        version=$(plist_value CFBundleShortVersionString) && build_number=$(plist_value CFBundleVersion); then
+        printf 'Build: version %s, build %s; HEAD %s timestamp %s\n' "$version" "$build_number" "$revision" "$expected"
+        if [[ "$build_number" != "$expected" || "$(cat "$run/revision")" != "$revision" ||
+              "$(plist_value CFBundleIdentifier)" != "$audit_id" ]]; then
+            printf 'Build revision or Audit identity mismatch.\n'
+            result=1
+        fi
+    else
+        printf 'Build: missing or unreadable; HEAD %s timestamp %s\n' "$revision" "$expected"
+        result=1
+    fi
+    if [[ ! -f "$run/gui-drive/pid" ]]; then
+        printf 'PID, window and AX tree: unavailable (no Audit launch record)\n'
+        result=1
+    fi
+    return "$result"
+}
+
+fixtures() {
+    require_owner
+    local dir="$fixture_root/${1:-}" file
+    case "${1:-}" in large-files|duplicates) ;; *) die 'Use fixtures large-files|duplicates.' ;; esac
+    [[ ! -L "$fixture_root" ]] || die 'Refusing symlinked fixture directory.'
+    mkdir -p "$fixture_root"
+    mkdir "$dir" || die 'Fixture directory already exists.'
+    file="$dir/cac-verify-$run_id"
+    case "$1" in
+        large-files) dd if=/dev/urandom of="$file-large.bin" bs=1048576 count=101 2>/dev/null ;;
+        duplicates)
+            dd if=/dev/urandom of="$file-a.bin" bs=1048576 count=2 2>/dev/null
+            # Write independent data blocks so APFS does not treat this as a clone.
+            dd if="$file-a.bin" of="$file-b.bin" bs=1048576 2>/dev/null
+            touch -t 202001010000 "$file-a.bin"
+            ;;
+    esac
+    for file in "$dir"/*.bin; do
+        stat -f '%d:%i' "$file" > "$run/${file##*/}.identity"
+    done
+    printf '%s\n' "$dir"
+}
+
+fixture_link() {
+    require_owner
+    local kind=${1:-}
+    case "$kind" in large-files|duplicates) ;; *) die 'Use fixture-link large-files|duplicates.' ;; esac
+    [[ -d "$fixture_root/$kind" && ! -L "$fixture_root" && ! -L "$fixture_root/$kind" ]] ||
+        die 'Create fixtures before linking their folder.'
+    python3 "$scripts/fixture-link.py" create "$run" "$kind"
+}
+
+guarded_action() {
+    CAC_VERIFY_SCRATCH="$run" drive guarded-action "$scripts/check-action" "$@"
+}
+
+cleanup() {
+    [[ -d "$run" ]] || return 0
+    require_owner
+    python3 - "$run" "$evidence" <<'PY' || die "Recorded evidence is inside scratch. Scratch retained: $evidence"
+import os
+import sys
+
+scratch, evidence = sys.argv[1:]
+sys.exit(any(os.path.commonpath([scratch, path]) == scratch
+             for path in (os.path.normpath(evidence), os.path.realpath(evidence))))
+PY
+    local kind
+    if [[ -f "$run/gui-drive/pid" ]]; then
+        audit_record
+        drive cleanup || return
+    fi
+
+    for kind in large-files duplicates; do
+        python3 "$scripts/fixture-link.py" remove "$run" "$kind" ||
+            die "Could not clean up the recorded fixture link. Scratch retained: $run"
+    done
+    if [[ -d "$fixture_root" ]]; then
+        python3 "$scripts/report-trash.py" "$run" "$HOME/.Trash"
+    fi
+    require_owner
+    /bin/rm -rf -- "$run"
+    printf 'Removed scratch: %s\nEvidence: %s\n' "$run" "$evidence"
+}
+
+case "$command" in
+    paths)
+        if [[ -d "$run" ]]; then require_owner; fi
+        printf 'Scratch: %s\nEvidence: %s\n' "$run" "$evidence"
+        ;;
+    build) build ;;
+    launch)
+        require_owner
+        screen=monitor
+        if [[ $# -ne 0 ]]; then
+            [[ $# -eq 2 && "$1" == --screen ]] || die 'Use launch [--screen SCREEN].'
+            screen=$2
+        fi
+        case "$screen" in
+            storage|systemData|monitor|history|security|smartCleanup|systemJunk|developer|privacy|largeFiles|duplicates|apps|leftovers|orphans|startup|settings) ;;
+            *) die "Unknown screen: $screen." ;;
+        esac
+        [[ -x "$executable" && "$(plist_value CFBundleIdentifier)" == "$audit_id" ]] ||
+            die 'Build an Audit bundle before launch.'
+        drive launch "$bundle" --env "CAC_INITIAL_SCREEN=$screen" --env CAC_HIDE_FDA_BANNER=1 \
+            -- -app.language en -AppleLanguages '(en)'
+        audit_record
+        if ! drive wait-for AXWindow main 6 >/dev/null 2>&1; then
+            # SwiftUI keeps the app's main window in the native window menu.
+            if ! (drive activate && guarded_action press AXMenuItem CleanAppCache &&
+                  drive wait-for AXWindow main 6); then
+                drive status || exit 1
+                die 'The Audit PID has no reachable main window.'
+            fi
+        fi
+        drive status
+        ;;
+    doctor) doctor ;;
+    press|press-prefix|key)
+        require_owner
+        audit_record
+        guarded_action "$command" "$@"
+        ;;
+    activate|raise|tree|windows|find|wait-for|set|focus|select-folder|shot)
+        require_owner
+        audit_record
+        drive "$command" "$@"
+        ;;
+    fixtures) fixtures "$@" ;;
+    fixture-link) fixture_link "$@" ;;
+    cleanup) cleanup ;;
+    *) usage >&2; exit 2 ;;
+esac
