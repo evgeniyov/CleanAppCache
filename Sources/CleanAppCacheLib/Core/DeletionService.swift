@@ -145,18 +145,17 @@ public enum DeletionService {
                 continue
             }
             let size = (try? fm.allocatedSize(of: URL(fileURLWithPath: url.path), reclaiming: true)) ?? 0
-            if let reason = PathGuard.rejectTree(url) {
-                Log.error("PathGuard refused permanent delete of \(url.path): \(reason)")
-                blocked.append(url)
-                continue
-            }
+            // Validation can perform slow I/O, so inspect the tree after it returns.
             guard validation(url) else {
                 failed.append(url)
                 obstacles[url] = validationObstacle
                 continue
             }
-            // A validation callback can perform slow I/O. It cannot authorize
-            // a replacement that appeared after this batch was selected.
+            if let reason = PathGuard.rejectTree(url) {
+                Log.error("PathGuard refused permanent delete of \(url.path): \(reason)")
+                blocked.append(url)
+                continue
+            }
             guard identity.matches(url) else {
                 failed.append(url)
                 obstacles[url] = .changedSinceScan
@@ -490,19 +489,22 @@ public enum DeletionService {
             let privacy = shellReceipt(receipt + "_PRIVACY")
             remove = "if cac_error=$(\(remove) 2>&1); then true; else "
                 + "case \"$cac_error\" in *'Operation not permitted'*) \(privacy);; esac; /usr/bin/false; fi"
-            if let activityCheck {
-                let running = shellReceipt(receipt + "_RUNNING")
-                remove = "\(activityCheck); case $? in 0) if \(finalChecks); then \(remove); "
-                    + "else \(changed)/usr/bin/false; fi;; 42) \(running); /usr/bin/false;; "
-                    + "*) /usr/bin/false;; esac"
-            }
         }
         let fingerprintCheck = "if cac_tree_fingerprint=$(\(treeFingerprintPipeline(target, parent: identity.parent))); then "
             + "if [ \"$cac_tree_fingerprint\" = \(quote(fingerprint)) ] && \(finalChecks); then "
             + "\(remove); else \(changed)/usr/bin/false; fi; "
             + "else \(changed)/usr/bin/false; fi"
+        let checkedRemoval: String
+        if let activityCheck, let receipt {
+            // The tree can change while lsof runs, so compare its fingerprint afterward.
+            let running = shellReceipt(receipt + "_RUNNING")
+            checkedRemoval = "{ \(activityCheck); case $? in 0) \(fingerprintCheck);; "
+                + "42) \(running); /usr/bin/false;; *) /usr/bin/false;; esac; }"
+        } else {
+            checkedRemoval = fingerprintCheck
+        }
         return "( set -o pipefail; export LC_ALL=C; cd -P -- \(quote(parent)) && "
-            + locationChecks + " && " + fingerprintCheck + " )"
+            + locationChecks + " && " + checkedRemoval + " )"
     }
 
     /// Only directory metadata and managed-cache markers can change the tree's

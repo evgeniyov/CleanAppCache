@@ -23,14 +23,16 @@ final class PrivilegedTreeChangeTests: XCTestCase {
     /// The production command only receives scratch targets and runs without
     /// AppleScript or elevation. Mutation happens after preflight completes.
     private func remove(_ groups: [[URL]], beforeRun: () throws -> Void = {},
-                        transformCommand: (String) -> String = { $0 }) throws
+                        transformCommand: (String) -> String = { $0 },
+                        appBundles: Set<URL> = [], activityCheck: (URL) -> String = { _ in "/usr/bin/true" }) throws
         -> DeletionService.AdministratorResult {
         var identities: [URL: RemovalIdentity] = [:]
         for url in groups.flatMap({ $0 }) {
             identities[url] = try XCTUnwrap(RemovalIdentity(at: url, bundle: url.pathExtension == "app"))
         }
-        return DeletionService.deleteAsAdministrator(groups, prompt: "unused", identities: identities,
+        return DeletionService.deleteAsAdministrator(groups, prompt: "unused", identities: identities, appBundles: appBundles,
             targetResolver: { $0.path.hasPrefix(self.root.path + "/") ? $0 : nil },
+            activityCheck: activityCheck,
             runner: { command, _ in
                 do {
                     try beforeRun()
@@ -172,6 +174,23 @@ final class PrivilegedTreeChangeTests: XCTestCase {
         XCTAssertEqual(result.removed, [independent])
         XCTAssertEqual(result.changed, [bundle])
         XCTAssertTrue(fm.fileExists(atPath: bundle.path))
+        XCTAssertTrue(fm.fileExists(atPath: data.path))
+    }
+
+    func testAdministratorKeepsProtectedDescendantAddedDuringActivityCheck() throws {
+        let bundle = root.appendingPathComponent("Applications/Editor.app")
+        _ = try write("Applications/Editor.app/Contents/Info.plist", "bundle identity")
+        _ = try write("Applications/Editor.app/Contents/Resources/original")
+        let protected = bundle.appendingPathComponent("Contents/Resources/.git")
+        let data = try write("Library/editor/document")
+
+        let result = try remove([[bundle, data]], appBundles: [bundle], activityCheck: { _ in
+            "/bin/mkdir -- " + AppleScriptRunner.shellQuoted(protected.path)
+        })
+
+        XCTAssertEqual(result.changed, [bundle])
+        XCTAssertTrue(result.removed.isEmpty)
+        XCTAssertTrue(fm.fileExists(atPath: protected.path))
         XCTAssertTrue(fm.fileExists(atPath: data.path))
     }
 

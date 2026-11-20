@@ -5,18 +5,31 @@ import XCTest
 final class StorageOverviewTests: XCTestCase {
     @MainActor
     private final class Probe {
-        var pending: CheckedContinuation<StorageViewModel.Overview?, Never>?
+        var pending: CheckedContinuation<StorageInfo?, Never>?
+        var pendingBreakdown: CheckedContinuation<Void, Never>?
 
-        func measure() async -> StorageViewModel.Overview? {
+        func read() async -> StorageInfo? {
             await withCheckedContinuation { pending = $0 }
         }
 
         func finish(used: UInt64) {
-            let info = StorageInfo(totalBytes: 10_000, freeBytes: 10_000 - used, usedBytes: used)
-            let category = StorageBreakdown(name: "Fixture", icon: "folder", bytes: used,
-                                            path: "/fixture", percentOfTotal: info.usedPercent)
-            pending?.resume(returning: (info, [category]))
+            pending?.resume(returning: StorageInfo(totalBytes: 10_000, freeBytes: 10_000 - used, usedBytes: used))
             pending = nil
+        }
+
+        func measureBreakdown(_ info: StorageInfo) async -> [StorageBreakdown] {
+            await withCheckedContinuation { pendingBreakdown = $0 }
+            return Self.breakdown(info)
+        }
+
+        func finishBreakdown() {
+            pendingBreakdown?.resume()
+            pendingBreakdown = nil
+        }
+
+        nonisolated static func breakdown(_ info: StorageInfo) -> [StorageBreakdown] {
+            [StorageBreakdown(name: "Fixture", icon: "folder", bytes: info.usedBytes,
+                              path: "/fixture", percentOfTotal: info.usedPercent)]
         }
     }
 
@@ -26,7 +39,9 @@ final class StorageOverviewTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let manager = StorageManager(diskCache: DiskCacheManager(directory: scratch), measure: { _, _ in [:] })
         let probe = Probe()
-        let vm = StorageViewModel(manager: manager, explorer: .live, measureOverview: { await probe.measure() })
+        let vm = StorageViewModel(manager: manager, explorer: .live,
+                                  readStorageInfo: { await probe.read() },
+                                  measureBreakdown: { Probe.breakdown($0) })
 
         vm.loadStorageInfoIfNeeded()
         try await waitUntil { probe.pending != nil }
@@ -52,6 +67,41 @@ final class StorageOverviewTests: XCTestCase {
         try await waitUntil { !vm.isLoading }
         XCTAssertEqual(vm.storageInfo?.usedBytes, 3_000)
         XCTAssertEqual(vm.breakdown.first?.bytes, 3_000)
+    }
+
+    func testPublishesVolumeStatsBeforeBreakdownAndRejectsInvalidatedBreakdown() async throws {
+        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("storage-overview-\(UUID())")
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let cache = DiskCacheManager(directory: scratch)
+        let manager = StorageManager(diskCache: cache, measure: { _, _ in [:] })
+        let probe = Probe()
+        let vm = StorageViewModel(manager: manager, explorer: .live,
+                                  readStorageInfo: { await probe.read() },
+                                  measureBreakdown: { await probe.measureBreakdown($0) })
+        defer { probe.finishBreakdown() }
+
+        vm.loadStorageInfoIfNeeded()
+        try await waitUntil { probe.pending != nil }
+        probe.finish(used: 5_000)
+        try await waitUntil { probe.pendingBreakdown != nil }
+        XCTAssertEqual(vm.storageInfo?.usedBytes, 5_000)
+        XCTAssertEqual(vm.storageInfo?.freeBytes, 5_000)
+        XCTAssertTrue(vm.breakdown.isEmpty)
+        XCTAssertTrue(vm.isLoading)
+        probe.finishBreakdown()
+        try await waitUntil { !vm.isLoading }
+        XCTAssertEqual(vm.breakdown.first?.bytes, 5_000)
+
+        vm.reloadStorageInfo()
+        try await waitUntil { probe.pending != nil }
+        probe.finish(used: 4_000)
+        try await waitUntil { probe.pendingBreakdown != nil }
+        XCTAssertEqual(vm.storageInfo?.usedBytes, 4_000)
+        await cache.clear()
+        probe.finishBreakdown()
+        try await waitUntil { !vm.isLoading }
+        XCTAssertEqual(vm.breakdown.first?.bytes, 5_000)
     }
 
     private enum FixtureError: Error { case timeout }

@@ -150,10 +150,9 @@ public final class StorageViewModel: ObservableObject {
     private var detailTask: Task<Void, Never>?
     private var detailGeneration = UUID()
 
-    typealias Overview = (info: StorageInfo, breakdown: [StorageBreakdown])
-
     private let manager: StorageManager
-    private let measureOverview: @Sendable () async -> Overview?
+    private let readStorageInfo: @Sendable () async -> StorageInfo?
+    private let measureBreakdown: @Sendable (StorageInfo) async -> [StorageBreakdown]
     private var overviewTask: Task<Void, Never>?
     private var hasLoaded = false
 
@@ -164,13 +163,13 @@ public final class StorageViewModel: ObservableObject {
     }
 
     init(manager: StorageManager, explorer: StorageExplorer,
-         measureOverview: (@Sendable () async -> Overview?)? = nil) {
+         readStorageInfo: (@Sendable () async -> StorageInfo?)? = nil,
+         measureBreakdown: (@Sendable (StorageInfo) async -> [StorageBreakdown])? = nil) {
         self.manager = manager
         self.explorer = explorer
-        self.measureOverview = measureOverview ?? {
-            guard let info = await manager.getStorageInfo() else { return nil }
-            let breakdown = await manager.getBreakdown(totalBytes: info.totalBytes, usedBytes: info.usedBytes)
-            return (info, breakdown)
+        self.readStorageInfo = readStorageInfo ?? { await manager.getStorageInfo() }
+        self.measureBreakdown = measureBreakdown ?? { info in
+            await manager.getBreakdown(totalBytes: info.totalBytes, usedBytes: info.usedBytes)
         }
         invalidationObserver = StorageInvalidationObservation(NotificationCenter.default.addObserver(
             forName: .storageCacheInvalidated, object: nil, queue: .main
@@ -197,30 +196,35 @@ public final class StorageViewModel: ObservableObject {
         guard !isLoading else { return }
         isLoading = true
         scanLog = ["Analyzing directories..."]
-        overviewTask = Task { [weak self, manager, measureOverview] in
+        overviewTask = Task { [weak self, manager, readStorageInfo, measureBreakdown] in
+            defer {
+                if !Task.isCancelled, let self {
+                    self.overviewTask = nil
+                    self.isLoading = false
+                }
+            }
             if clearBrowserSnapshots { await manager.diskCache.clearBrowserSnapshots() }
             guard !Task.isCancelled else { return }
 
             let generation = await manager.diskCache.generation
-            let overview = await measureOverview()
-            let stillCurrent = await manager.diskCache.generation == generation
-            guard !Task.isCancelled, let self else { return }
-            defer {
-                self.overviewTask = nil
-                self.isLoading = false
-            }
-            guard stillCurrent else { return }
-            guard let (info, breakdown) = overview else {
-                self.scanLog.append("Failed to read storage info")
+            let volumeInfo = await readStorageInfo()
+            let volumeInfoIsCurrent = await manager.diskCache.generation == generation
+            guard !Task.isCancelled, volumeInfoIsCurrent, self != nil else { return }
+            guard let info = volumeInfo else {
+                self?.scanLog.append("Failed to read storage info")
                 return
             }
+            self?.storageInfo = info
+            self?.scanLog.append("Total: \(info.formattedTotal)")
+            self?.scanLog.append("Used: \(info.formattedUsed) (\(Int(info.usedPercent * 100))%)")
+            self?.scanLog.append("Free: \(info.formattedFree)")
+
+            let breakdown = await measureBreakdown(info)
+            let breakdownIsCurrent = await manager.diskCache.generation == generation
+            guard !Task.isCancelled, breakdownIsCurrent, let self else { return }
             self.hasLoaded = true
-            self.storageInfo = info
             self.breakdown = breakdown
             self.storageMeasuredAt = Date()
-            self.scanLog.append("Total: \(info.formattedTotal)")
-            self.scanLog.append("Used: \(info.formattedUsed) (\(Int(info.usedPercent * 100))%)")
-            self.scanLog.append("Free: \(info.formattedFree)")
             self.scanLog.append("Done. Found \(breakdown.count) categories.")
         }
     }

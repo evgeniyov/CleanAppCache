@@ -147,6 +147,31 @@ final class ScanSizingTests: XCTestCase {
         XCTAssertEqual(calls.split(separator: "\n"), ["10", "2"])
     }
 
+    func testFailedSmartCleanupBatchRetriesZeroSizedHardLinkPeer() async throws {
+        let unreadable = try folder("unreadable")
+        let file = try payload(in: unreadable)
+        let blocked = try folder("unreadable/child")
+        defer { try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: blocked.path) }
+        let readable = try folder("readable")
+        try fm.linkItem(at: file, to: readable.appendingPathComponent("link"))
+        let standalone = await DirectorySizeProbe.measureRoot(readable, timeout: 5)
+        let size = try XCTUnwrap(standalone.bytes)
+        XCTAssertTrue(standalone.complete)
+        XCTAssertGreaterThanOrEqual(size, 8192)
+
+        let command = try executable("measuring-du", body: """
+            /bin/chmod 000 "${0%/*}/unreadable/child"
+            exec /usr/bin/du "$@"
+            """)
+        let scanner = CleanAppCacheLib.Scanner(duExecutable: command)
+        let result = await scanner.scanCategory(category: .installers,
+            source: .directories([unreadable.path, readable.path]), inUse: { _ in false })
+
+        XCTAssertEqual(result.items.map(\.url.path), [readable.path])
+        XCTAssertEqual(result.items.map(\.size), [size])
+        XCTAssertEqual(result.skipped.counts[.unreadable], 1)
+    }
+
     func testLargeFilesStopsProducerAtBudgetAndPreservesNULFraming() async throws {
         let file = try payload(in: root, name: "with\na newline")
         let command = try executable("busy-find", body: """

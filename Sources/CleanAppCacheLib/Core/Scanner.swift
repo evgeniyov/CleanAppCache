@@ -447,7 +447,9 @@ public actor Scanner {
             guard !roots.isEmpty else { return [:] }
             uncertain.formUnion(roots)
         }
-        return sizes.filter { !uncertain.contains($0.key) }
+        // A failed root can consume the blocks shared with a readable peer.
+        // Retry zero-sized peers alone so they can account for those links.
+        return sizes.filter { $0.value > 0 && !uncertain.contains($0.key) }
     }
 
     /// Keep each batch below ARG_MAX. BSD du prints literal paths and cannot

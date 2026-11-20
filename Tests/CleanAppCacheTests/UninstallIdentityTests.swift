@@ -126,6 +126,29 @@ final class UninstallIdentityTests: XCTestCase {
         XCTAssertTrue(fm.fileExists(atPath: app.associatedFiles[0].url.path))
     }
 
+    func testDirectUninstallKeepsProtectedDescendantAddedDuringActivityCheck() async throws {
+        let root = try scratch()
+        let app = try fixture(root)
+        let resources = app.url.appendingPathComponent("Contents/Resources")
+        try fm.createDirectory(at: resources, withIntermediateDirectories: true)
+        let protected = resources.appendingPathComponent(".git")
+        let results = await AppManager.shared.uninstall([app], adminPrompt: "unused", bundleIsRunning: { _ in
+            do {
+                try FileManager.default.createDirectory(at: protected, withIntermediateDirectories: false)
+                return false
+            } catch {
+                XCTFail("Could not create protected descendant: \(error)")
+                return nil
+            }
+        })
+
+        let result = try XCTUnwrap(results.first)
+        XCTAssertTrue(result.bundleBlocked)
+        XCTAssertFalse(result.bundleRemoved)
+        XCTAssertTrue(fm.fileExists(atPath: protected.path))
+        XCTAssertTrue(fm.fileExists(atPath: app.associatedFiles[0].url.path))
+    }
+
     func testDirectUninstallRefusesReplacementBundleAndKeepsData() async throws {
         let root = try scratch()
         let app = try fixture(root)
