@@ -101,6 +101,7 @@ public struct SystemDataView: View {
         ) {
             if let snapshot = pendingDelete {
                 Button(loc.s("sysdata.deleteSnapshot"), role: .destructive) { delete(snapshot) }
+                    .disabled(viewModel.isBusy)
             }
             Button(loc.s("common.cancel"), role: .cancel) {}
         } message: {
@@ -118,6 +119,7 @@ public struct SystemDataView: View {
                 failedID = nil
                 viewModel.thinAllSnapshots()
             }
+            .disabled(viewModel.isBusy)
             Button(loc.s("common.cancel"), role: .cancel) {}
         } message: {
             Text(loc.s("sysdata.thinConsequence"))
@@ -139,6 +141,7 @@ public struct SystemDataView: View {
         if viewModel.hasScanned && !viewModel.isScanning {
             Button(loc.s("common.rescan")) { viewModel.scan() }
                 .buttonStyle(.secondaryAction)
+                .disabled(viewModel.isBusy)
         }
     }
 
@@ -375,7 +378,7 @@ public struct SystemDataView: View {
                         height: Metric.nestedRow,
                         accessibility: loc.f("sysdata.a11y.snapshotFmt",
                                              viewModel.snapshotDateText(snapshot)),
-                        action: { pendingDelete = snapshot }) {
+                        action: viewModel.isBusy ? nil : { pendingDelete = snapshot }) {
             Text(viewModel.snapshotDateText(snapshot))
                 .font(Typo.body)
                 .foregroundStyle(Palette.textNav)
@@ -408,11 +411,11 @@ public struct SystemDataView: View {
                 } else if failed {
                     Button(loc.s("common.retry")) { pendingDelete = snapshot }
                         .buttonStyle(.secondaryAction(height: 24))
-                        .disabled(viewModel.isDeletingSnapshot)
+                        .disabled(viewModel.isBusy)
                 } else {
                     Button(loc.s("sysdata.deleteAction")) { pendingDelete = snapshot }
                         .buttonStyle(.dangerAction(height: 24))
-                        .disabled(viewModel.isDeletingSnapshot)
+                        .disabled(viewModel.isBusy)
                         .help(loc.s("sysdata.deleteSnapshot"))
                 }
             }
@@ -437,7 +440,7 @@ public struct SystemDataView: View {
             consequence: loc.s("sysdata.thinConsequence"),
             consequenceIsDestructive: true
         ) {
-            if viewModel.isDeletingSnapshot || viewModel.isScanning {
+            if viewModel.isBusy {
                 ProgressView()
                     .progressViewStyle(.linear)
                     .tint(Palette.dangerFill)
@@ -447,7 +450,7 @@ public struct SystemDataView: View {
                 showThinConfirm = true
             }
             .buttonStyle(PrimaryButtonStyle(tint: Palette.dangerFill))
-            .disabled(viewModel.isDeletingSnapshot || viewModel.isScanning)
+            .disabled(viewModel.isBusy)
             .help(loc.s("sysdata.thinAllHelp"))
         }
     }
@@ -502,8 +505,8 @@ public struct SystemDataView: View {
     }
 
     private func delete(_ snapshot: TMSnapshot) {
+        guard viewModel.deleteSnapshot(snapshot) else { return }
         deletingID = snapshot.id
         failedID = nil
-        viewModel.deleteSnapshot(snapshot)
     }
 }

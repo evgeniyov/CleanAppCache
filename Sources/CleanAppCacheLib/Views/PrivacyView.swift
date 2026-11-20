@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 import CryptoKit
 
 // MARK: - Privacy
@@ -31,12 +30,17 @@ public struct PrivacyView: View {
     /// The size filter belongs to this section; it is not shared with the others.
     @State private var sizeFilter: ScanSizeFilter = .all
     @State private var showClearConfirm = false
-    /// Whether any chosen browser was alive when the dialog opened — see
-    /// `probeRunning()`.
-    @State private var anyRunning = false
-    /// A clear can span several browsers and a quit, so it outlives the view
-    /// model's per-entry `clearingID`.
-    @State private var isClearing = false
+    @State private var confirmation: ClearConfirmation?
+
+    private struct ClearConfirmation {
+        let entries: [BrowserEntry]
+        let authorizedToQuit: Set<String>
+
+        var names: String { entries.map(\.name).joined(separator: ", ") }
+        var bytes: UInt64 { entries.reduce(0) { $0 &+ $1.totalSize } }
+        var needsQuit: Bool { !authorizedToQuit.isEmpty }
+    }
+
     @State private var hasFullDiskAccess = true
 
     public init() {}
@@ -53,11 +57,9 @@ public struct PrivacyView: View {
                                selection: $selection,
                                sizeFilter: $sizeFilter,
                                onScan: { viewModel.scan() },
-                               onApply: {
-                                   guard !isClearing else { return }
-                                   anyRunning = probeRunning()
-                                   showClearConfirm = true
-                               })
+                               onApply: prepareConfirmation,
+                               skipped: viewModel.skipped)
+                    .disabled(viewModel.isClearing)
             }
         }
         .background(Palette.background)
@@ -69,21 +71,24 @@ public struct PrivacyView: View {
             hasFullDiskAccess = FullDiskAccess.isGranted()
         }
         .confirmationDialog(
-            confirmTitle, isPresented: $showClearConfirm, titleVisibility: .visible
-        ) {
-            // The volume goes in the button. A running browser changes the
-            // button, because the clear then starts by quitting it.
-            //
-            // Not `common.moveToTrashFmt`, which the six recoverable sections
-            // use: nothing here goes to the Trash, and a button that says it
-            // does is the one thing the user would read before pressing.
-            Button(anyRunning
-                   ? loc.f("privacy.quitAndClearFmt", Fmt.bytes(chosenBytes))
-                   : loc.f("privacy.deleteForGoodFmt", Fmt.bytes(chosenBytes)),
-                   role: .destructive) { clearChosen() }
+            confirmation.map {
+                loc.f($0.needsQuit ? "privacy.confirmQuitFmt" : "privacy.confirmClearFmt", $0.names)
+            } ?? "",
+            isPresented: $showClearConfirm, titleVisibility: .visible, presenting: confirmation
+        ) { request in
+            Button(request.needsQuit
+                   ? loc.f("privacy.quitAndClearFmt", Fmt.bytes(request.bytes))
+                   : loc.f("privacy.deleteForGoodFmt", Fmt.bytes(request.bytes)),
+                   role: .destructive) {
+                Task {
+                    if await viewModel.clearHistory(for: request.entries, authorizedToQuit: request.authorizedToQuit) {
+                        selection = []
+                    }
+                }
+            }
             Button(loc.s("common.cancel"), role: .cancel) {}
-        } message: {
-            Text(loc.s(anyRunning ? "privacy.confirmQuitMsg" : "privacy.confirmClearMsg"))
+        } message: { request in
+            Text(loc.s(request.needsQuit ? "privacy.confirmQuitMsg" : "privacy.confirmClearMsg"))
         }
     }
 
@@ -146,7 +151,7 @@ public struct PrivacyView: View {
 
     /// `BrowserEntry` is keyed by bundle id and `ScanResultItem` wants a `UUID`.
     /// Deriving one from the id keeps a row's identity — and with it the
-    /// selection — across the rescan the view model runs after every clear.
+    /// selection — across the rescan the view model runs after a batch.
     private func rowID(_ bundleID: String) -> UUID {
         var hasher = Insecure.MD5()
         hasher.update(data: Data(bundleID.utf8))
@@ -165,7 +170,7 @@ public struct PrivacyView: View {
     /// simply could not be read. (Same pattern as SystemDataView.)
     private var blockedByAccess: Bool {
         viewModel.hasScanned && !viewModel.isScanning && !hasFullDiskAccess
-            && !viewModel.browsers.contains(where: \.hasData)
+            && !viewModel.browsers.contains(where: \.hasData) && !viewModel.skipped.needsNotice
     }
 
     private var accessScreen: some View {
@@ -190,91 +195,12 @@ public struct PrivacyView: View {
         }
     }
 
-    private var chosenBytes: UInt64 {
-        chosen.reduce(UInt64(0)) { $0 &+ $1.totalSize }
-    }
-
-    /// Live, not the flag the scan captured: the user may have opened the
-    /// browser since, and the dialog has to describe what will actually happen.
-    ///
-    /// Probed once, when the dialog opens, and held in `anyRunning` for as long
-    /// as it is up: `blockingProcess` walks the process list and asks
-    /// LaunchServices where the app lives, which is far too much to repeat on
-    /// every evaluation of the body. The delete re-checks it for real anyway —
-    /// this answer only has to be right at the moment the user is asked.
-    private func probeRunning() -> Bool {
-        chosen.contains { $0.isRunning || PrivacyManager.blockingProcess(for: $0.id) != nil }
-    }
-
-    /// The title names the browsers rather than counting rows: with at most
-    /// five of them the list is short, and "Clear items (2)?" would not
-    /// tell the user which two sessions they are about to lose.
-    private var confirmTitle: String {
-        let names = chosen.map(\.name).joined(separator: ", ")
-        return loc.f(anyRunning ? "privacy.confirmQuitFmt" : "privacy.confirmClearFmt", names)
-    }
-
-    /// Nothing here is reachable without a tick and a confirmation: `chosen` is
-    /// the intersection of the user's selection with the rows the size filter
-    /// left visible, and the only caller is the destructive button in the
-    /// dialog above.
-    private func clearChosen() {
-        let targets = chosen
-        guard !targets.isEmpty else { return }
-        isClearing = true
-        Task {
-            for entry in targets {
-                if let app = runningApp(for: entry) {
-                    // A request, never a kill: the browser still gets to ask
-                    // about unsaved pages, and it is allowed to refuse.
-                    app.terminate()
-                    guard await waitForExit(of: entry.id) else {
-                        ToastCenter.shared.error(loc.f("privacy.quitFailedFmt", entry.name))
-                        continue
-                    }
-                }
-                // Refuse rather than half-delete, and say why: a helper process
-                // still holding the profile leaves nothing on screen to explain
-                // a row that did not change.
-                guard let ready = unblocked(entry) else {
-                    ToastCenter.shared.error(loc.f("privacy.quitFailedFmt", entry.name))
-                    continue
-                }
-                await viewModel.clearHistory(for: ready)
-            }
-            selection = []
-            isClearing = false
-        }
-    }
-
-    /// `PrivacyViewModel` gates the clear on the `isRunning` flag captured
-    /// during the scan, which is stale once we have watched the process leave.
-    /// Re-check the live process list and only then hand over an entry that
-    /// says the browser is gone: the guard's intent — never touch a running
-    /// browser's files — is preserved, and it is measured against the
-    /// present instead of against the last scan. `PrivacyManager` repeats the
-    /// same check immediately before deleting, so this cannot be the only one.
-    private func unblocked(_ entry: BrowserEntry) -> BrowserEntry? {
-        guard PrivacyManager.blockingProcess(for: entry.id) == nil else { return nil }
-        var ready = entry
-        ready.isRunning = false
-        return ready
-    }
-
-    /// Polls the live process list rather than holding the
-    /// `NSRunningApplication`, so it also catches a browser that comes straight
-    /// back up. `blockingProcess` waits for the helpers too: Chromium's
-    /// renderers keep the cookie jar open for a moment after the main app is
-    /// gone, and that moment is when a delete corrupts the profile.
-    private func waitForExit(of bundleID: String) async -> Bool {
-        for _ in 0..<40 {                                   // ~10s at 250ms
-            if PrivacyManager.blockingProcess(for: bundleID) == nil { return true }
-            try? await Task.sleep(nanoseconds: 250_000_000)
-        }
-        return PrivacyManager.blockingProcess(for: bundleID) == nil
-    }
-
-    private func runningApp(for entry: BrowserEntry) -> NSRunningApplication? {
-        NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == entry.id }
+    private func prepareConfirmation() {
+        guard !viewModel.isScanning, !viewModel.isClearing else { return }
+        let entries = chosen
+        guard !entries.isEmpty else { return }
+        let running = entries.filter { PrivacyManager.blockingProcess(for: $0.id) != nil }
+        confirmation = ClearConfirmation(entries: entries, authorizedToQuit: Set(running.map(\.id)))
+        showClearConfirm = true
     }
 }

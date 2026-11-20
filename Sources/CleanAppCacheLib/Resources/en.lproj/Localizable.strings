@@ -363,11 +363,13 @@
 "loginitems.status.translocated" = "Running from the disk image — move CleanAppCache to Applications and relaunch";
 
 /* Privacy */
-"privacy.idleMessage" = "Detects Safari, Chrome, Firefox, Brave and Arc history, cookies and site data.";
+"privacy.idleMessage" = "Finds history, cookies and supported storage in Safari, Chrome, Firefox, Brave and Arc.";
 "privacy.running" = "Running";
-"privacy.clearedFmt" = "%@ data deleted";
+"privacy.clearedFmt" = "Selected history, cookies and listed storage cleared in %@";
+"privacy.alreadyClearFmt" = "No remaining records to clear in %@";
 "privacy.freedFmt" = "Estimated freed: %@";
-"privacy.failedFmt" = "Couldn't clear %@ data";
+"privacy.failedFmt" = "Could not clear selected records in %@";
+"privacy.partialFmt" = "Only some selected records in %@ were cleared";
 
 /* System Junk */
 "systemJunk.title" = "System Junk";
@@ -544,16 +546,17 @@
 "leftovers.confirmBatchFmt" = "Move the leftover files of %@ to the Trash?";
 "leftovers.noAccess" = "Without Full Disk Access other apps’ containers and protected caches stay invisible, so leftovers can be missed.";
 "menubar.toggleFmt" = "Show %@ in the menu bar";
-"privacy.checked" = "History, cookies and site data for Safari, Chrome, Firefox, Brave and Arc";
+"privacy.checked" = "History, cookies and supported storage in Safari, Chrome, Firefox, Brave and Arc";
 "privacy.col.browser" = "Browser";
-"privacy.confirmClearFmt" = "Delete %@ history and site data?";
-"privacy.confirmClearMsg" = "Cookies and site data are deleted for good — you will be signed out of some sites and have to sign in again. History goes with them, bypassing the Trash: there is no way to restore it. Firefox history is cleared inside its database, so its bookmarks stay. Passwords, bookmarks, autofill and extensions' own storage are kept; what an extension saves in a browser's Local Storage is shared with the sites and is deleted with theirs.";
-"privacy.confirmQuitFmt" = "Quit %@ and delete its history and site data?";
-"privacy.confirmQuitMsg" = "The browser is asked to quit first and may prompt about unsaved pages. Nothing is deleted until it is gone. Cookies, site data and history are then deleted for good, bypassing the Trash: you will be signed out of some sites. Firefox history is cleared inside its database, so its bookmarks stay. Passwords, bookmarks, autofill and extensions' own storage are kept; what an extension saves in a browser's Local Storage is deleted with the sites' data.";
+"privacy.confirmClearFmt" = "Permanently clear selected records in %@?";
+"privacy.confirmClearMsg" = "This permanently clears available history and cookies, Safari Local Storage, IndexedDB and legacy databases, Chromium Local Storage, Session Storage and site IndexedDB, and Firefox site storage. You may be signed out. Firefox bookmarks, saved passwords and autofill stay. Shared Chromium Local Storage and Session Storage can also contain extension data.";
+"privacy.confirmQuitFmt" = "Quit running browsers and clear selected records in %@?";
+"privacy.confirmQuitMsg" = "Running browsers are asked to quit and may ask about unsaved pages. After they quit, this permanently clears available history and cookies, Safari Local Storage, IndexedDB and legacy databases, Chromium Local Storage, Session Storage and site IndexedDB, and Firefox site storage. You may be signed out. Firefox bookmarks, saved passwords and autofill stay. Shared Chromium Local Storage and Session Storage can also contain extension data.";
 "privacy.deleteForGoodFmt" = "Delete for good (%@)";
 "privacy.noAccessMissing" = "Without Full Disk Access, Safari history stays invisible and this section can report “clean” when it is not.";
 "privacy.quitAndClearFmt" = "Quit and delete (%@)";
 "privacy.quitFailedFmt" = "%@ is still running — quit it manually and try again";
+"privacy.startedFmt" = "%@ started after confirmation opened. Review and confirm again.";
 "settings.action.grant" = "Grant…";
 "settings.action.reset" = "Reset";
 "settings.action.showApplications" = "Open Applications";
@@ -973,7 +976,7 @@
 "dev.willFind" = "We will check tool caches and build artifacts inside your projects.";
 
 /* Privacy: what actually leaves the browser */
-"privacy.item" = "History and site data";
+"privacy.item" = "History, cookies and supported storage";
 
 /* Scan parameters in the screen header (Duplicates, Large Files).
    Not a filter over what was found — the threshold and the reach of the next

@@ -113,6 +113,7 @@ struct CleanAppCacheApp: App {
                 .environmentObject(Localizer.shared)
                 .environmentObject(ThemeManager.shared)
                 .frame(width: 720, height: 560)
+                .overlay { ToastOverlay() }
         }
     }
 }

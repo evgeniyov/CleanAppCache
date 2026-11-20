@@ -8,7 +8,7 @@ public struct DuplicateFile: Identifiable, Sendable, Equatable {
     public let size: UInt64
     public let modified: Date?
 
-    let snapshot: FileSnapshot?
+    private(set) var snapshot: FileSnapshot?
     var digest: Data?
 
     public init(url: URL, size: UInt64, modified: Date?) {
@@ -22,6 +22,27 @@ public struct DuplicateFile: Identifiable, Sendable, Equatable {
         Fmt.bytes(Int64(size))
     }
 
+    var allocatedBytes: UInt64 { snapshot?.allocatedBytes ?? 0 }
+
+    func refreshedAfterRestore() -> Self? {
+        guard let snapshot, let restored = FileSnapshot(at: url),
+              snapshot.isSameObject(as: restored) else { return nil }
+        var file = self
+        file.snapshot = restored
+        return DuplicateFinder.isUnchanged(file) ? file : nil
+    }
+
+    /// Prefer the requested age, then shallower paths and a deterministic tiebreak.
+    func preferred(over other: Self, newestFirst: Bool) -> Bool {
+        let a = modified ?? .distantPast
+        let b = other.modified ?? .distantPast
+        if a != b { return newestFirst ? a > b : a < b }
+        let da = url.pathComponents.count
+        let db = other.url.pathComponents.count
+        if da != db { return da < db }
+        return url.path < other.url.path
+    }
+
     public static func == (lhs: DuplicateFile, rhs: DuplicateFile) -> Bool {
         lhs.url == rhs.url
     }
@@ -33,10 +54,21 @@ public struct DuplicateGroup: Identifiable, Sendable {
     public let size: UInt64
     public let files: [DuplicateFile]
 
+    /// Estimated allocated bytes of the copies removed by the default keep rule.
+    public let wastedBytes: UInt64
+
+    init(size: UInt64, files: [DuplicateFile]) {
+        self.size = size
+        self.files = files
+        let kept = files.min { $0.preferred(over: $1, newestFirst: true) }?.allocatedBytes ?? 0
+        wastedBytes = files.reduce(0) { $0 + $1.allocatedBytes } - kept
+    }
+
     public var count: Int { files.count }
 
-    /// Bytes that could be reclaimed by keeping a single copy.
-    public var wastedBytes: UInt64 { size * UInt64(max(0, files.count - 1)) }
+    func survivor(newestFirst: Bool) -> DuplicateFile? {
+        files.min { $0.preferred(over: $1, newestFirst: newestFirst) }
+    }
 
     public var formattedSize: String {
         Fmt.bytes(Int64(size))

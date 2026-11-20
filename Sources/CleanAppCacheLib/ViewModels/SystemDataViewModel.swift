@@ -16,25 +16,38 @@ public final class SystemDataViewModel: ObservableObject {
     @Published public var hasScanned = false
     @Published public var isDeletingSnapshot = false
 
-    private let manager = SystemDataManager.shared
+    public var isBusy: Bool { isScanning || isDeletingSnapshot }
 
-    public init() {}
+    private let manager: SystemDataManager
+    private let scanSystemData: @Sendable () async -> SystemDataManager.ScanOutcome
 
-    public func scan() {
-        guard !isScanning else { return }
-        isScanning = true
-        hasScanned = true
-        Task {
-            let outcome = await manager.scan()
-            self.components = outcome.components
-            self.snapshots = outcome.snapshots ?? []
-            self.snapshotsUnreadable = outcome.snapshots == nil
-            self.isScanning = false
-        }
+    public convenience init() {
+        self.init(manager: .shared, scan: { await SystemDataManager.shared.scan() })
     }
 
-    public func deleteSnapshot(_ snapshot: TMSnapshot) {
-        guard !isDeletingSnapshot else { return }
+    init(manager: SystemDataManager, scan: @escaping @Sendable () async -> SystemDataManager.ScanOutcome) {
+        self.manager = manager
+        self.scanSystemData = scan
+    }
+
+    public func scan() {
+        guard !isBusy else { return }
+        isScanning = true
+        hasScanned = true
+        Task { await refresh() }
+    }
+
+    private func refresh() async {
+        let outcome = await scanSystemData()
+        components = outcome.components
+        snapshots = outcome.snapshots ?? []
+        snapshotsUnreadable = outcome.snapshots == nil
+        isScanning = false
+    }
+
+    @discardableResult
+    public func deleteSnapshot(_ snapshot: TMSnapshot) -> Bool {
+        guard !isBusy, snapshots.contains(where: { $0.id == snapshot.id }) else { return false }
         isDeletingSnapshot = true
         Task {
             if let failure = await manager.deleteSnapshot(snapshot) {
@@ -43,12 +56,13 @@ public final class SystemDataViewModel: ObservableObject {
                 snapshots.removeAll { $0.id == snapshot.id }
                 ToastCenter.shared.success(Localizer.shared.s("sysdata.snapshotDeleted"))
             }
-            self.isDeletingSnapshot = false
+            isDeletingSnapshot = false
         }
+        return true
     }
 
     public func thinAllSnapshots() {
-        guard !isDeletingSnapshot else { return }
+        guard !isBusy, !snapshots.isEmpty else { return }
         isDeletingSnapshot = true
         Task {
             if let failure = await manager.thinAllSnapshots() {
@@ -56,14 +70,10 @@ public final class SystemDataViewModel: ObservableObject {
             } else {
                 ToastCenter.shared.success(Localizer.shared.s("sysdata.thinDone"))
             }
-            self.isDeletingSnapshot = false
-            // Re-scan to reflect what Time Machine actually reclaimed.
-            self.isScanning = true
-            let outcome = await manager.scan()
-            self.components = outcome.components
-            self.snapshots = outcome.snapshots ?? []
-            self.snapshotsUnreadable = outcome.snapshots == nil
-            self.isScanning = false
+            // Keep all actions blocked until Time Machine's updated list is published.
+            isScanning = true
+            await refresh()
+            isDeletingSnapshot = false
         }
     }
 

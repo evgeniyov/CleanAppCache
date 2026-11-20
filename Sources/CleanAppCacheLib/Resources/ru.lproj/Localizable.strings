@@ -363,11 +363,13 @@
 "loginitems.status.translocated" = "Приложение запущено из образа диска — перенесите CleanAppCache в «Программы» и запустите заново";
 
 /* Privacy */
-"privacy.idleMessage" = "Определяет историю, cookies и данные сайтов Safari, Chrome, Firefox, Brave и Arc.";
+"privacy.idleMessage" = "Находит историю, cookies и поддерживаемые хранилища Safari, Chrome, Firefox, Brave и Arc.";
 "privacy.running" = "Запущен";
-"privacy.clearedFmt" = "Данные %@ удалены";
+"privacy.clearedFmt" = "Выбранные история, cookies и данные перечисленных хранилищ %@ очищены";
+"privacy.alreadyClearFmt" = "В %@ больше нет записей для очистки";
 "privacy.freedFmt" = "Освобождено примерно %@";
-"privacy.failedFmt" = "Не удалось очистить данные %@";
+"privacy.failedFmt" = "Не удалось очистить выбранные записи в %@";
+"privacy.partialFmt" = "В %@ очищена только часть выбранных записей";
 
 /* System Junk */
 "systemJunk.title" = "Системный мусор";
@@ -544,16 +546,17 @@
 "leftovers.confirmBatchFmt" = "Переместить остаточные файлы %@ в Корзину?";
 "leftovers.noAccess" = "Без полного доступа к диску контейнеры и защищённый кэш чужих приложений не видны — часть остатков не найдётся.";
 "menubar.toggleFmt" = "Показывать «%@» в строке меню";
-"privacy.checked" = "История, cookies и данные сайтов Safari, Chrome, Firefox, Brave и Arc";
+"privacy.checked" = "История, cookies и поддерживаемые хранилища Safari, Chrome, Firefox, Brave и Arc";
 "privacy.col.browser" = "Браузер";
-"privacy.confirmClearFmt" = "Удалить историю и данные сайтов %@?";
-"privacy.confirmClearMsg" = "Cookies и данные сайтов удаляются без возврата — вы выйдете из части сайтов и войдёте заново. История удаляется вместе с ними, минуя Корзину: восстановить не получится. История Firefox очищается внутри его базы данных, поэтому закладки остаются. Пароли, закладки, автозаполнение и собственное хранилище расширений не затрагиваются; то, что расширение сохранило в Local Storage браузера, хранится вместе с данными сайтов и удаляется с ними.";
-"privacy.confirmQuitFmt" = "Завершить %@ и удалить историю и данные сайтов?";
-"privacy.confirmQuitMsg" = "Сначала браузеру будет предложено завершиться — он может спросить о несохранённых страницах. Пока он не закроется, ничего не удаляется. Затем cookies, данные сайтов и история удаляются без возврата, минуя Корзину: вы выйдете из части сайтов. История Firefox очищается внутри его базы данных, поэтому закладки остаются. Пароли, закладки, автозаполнение и собственное хранилище расширений не затрагиваются; то, что расширение сохранило в Local Storage браузера, удаляется вместе с данными сайтов.";
+"privacy.confirmClearFmt" = "Удалить выбранные записи %@ без возможности восстановления?";
+"privacy.confirmClearMsg" = "Без возможности восстановления очищаются доступные история и cookies, Local Storage, IndexedDB и старые базы данных Safari, Local Storage, Session Storage и IndexedDB сайтов в Chromium, а также хранилища сайтов Firefox. Возможно, придётся снова войти на сайты. Закладки Firefox, сохранённые пароли и данные автозаполнения сохраняются. В общих хранилищах Local Storage и Session Storage Chromium могут быть данные расширений.";
+"privacy.confirmQuitFmt" = "Закрыть запущенные браузеры и очистить выбранные записи %@?";
+"privacy.confirmQuitMsg" = "Запущенным браузерам будет предложено закрыться. Они могут спросить о несохранённых страницах. После выхода без возможности восстановления очищаются доступные история и cookies, Local Storage, IndexedDB и старые базы данных Safari, Local Storage, Session Storage и IndexedDB сайтов в Chromium, а также хранилища сайтов Firefox. Возможно, придётся снова войти на сайты. Закладки Firefox, сохранённые пароли и данные автозаполнения сохраняются. В общих хранилищах Local Storage и Session Storage Chromium могут быть данные расширений.";
 "privacy.deleteForGoodFmt" = "Удалить без возврата (%@)";
 "privacy.noAccessMissing" = "Без полного доступа к диску история Safari не видна, и раздел может показать «чисто», когда это не так.";
 "privacy.quitAndClearFmt" = "Завершить и удалить (%@)";
 "privacy.quitFailedFmt" = "%@ всё ещё запущен — закройте его вручную и повторите";
+"privacy.startedFmt" = "%@ запустился после открытия окна подтверждения. Проверьте выбор и подтвердите снова.";
 "settings.action.grant" = "Права…";
 "settings.action.reset" = "Сбросить";
 "settings.action.showApplications" = "Открыть «Программы»";
@@ -974,7 +977,7 @@
 "dev.willFind" = "Проверим кэши инструментов и артефакты сборки в проектах.";
 
 /* Privacy: what actually leaves the browser */
-"privacy.item" = "История и данные сайтов";
+"privacy.item" = "История, cookies и поддерживаемые хранилища";
 
 /* Scan parameters in the screen header (Duplicates, Large Files).
    Not a filter over what was found — the threshold and the reach of the next

@@ -142,53 +142,67 @@ final class PrivacyViewModelClearTests: XCTestCase {
                              isRunning: isRunning, isInstalled: true), url)
     }
 
-    func testClearRemovesFilesAndShowsASuccessToast() async throws {
-        let (target, url) = try entry(id: "com.cacfixture.browser")
-        let before = ToastCenter.shared.toasts.count
-        let vm = PrivacyViewModel()
+    func testBatchClearsBothBrowsersBeforeOneRescan() async throws {
+        let (first, firstURL) = try entry(id: "com.cacfixture.first")
+        let (second, secondURL) = try entry(id: "com.cacfixture.second")
+        let before = Set(ToastCenter.shared.toasts.map(\.id))
+        let probe = ScanProbe()
+        let vm = PrivacyViewModel(scan: {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: firstURL.path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: secondURL.path))
+            await probe.recordScan()
+            return []
+        }, invalidateStorage: { urls in
+            XCTAssertEqual(Set(urls), Set([firstURL, secondURL]))
+        }, isRunning: { _ in false }, requestQuit: { _ in XCTFail("No browser should be asked to quit") })
 
-        await vm.clearHistory(for: target)
+        let accepted = await vm.clearHistory(for: [first, second], authorizedToQuit: [])
 
-        XCTAssertFalse(fm.fileExists(atPath: url.path))
-        XCTAssertNil(vm.clearingID)
-        XCTAssertEqual(ToastCenter.shared.toasts.count, before + 1)
-        XCTAssertEqual(ToastCenter.shared.toasts.last?.style, .success)
+        XCTAssertTrue(accepted)
+        let scans = await probe.scans
+        XCTAssertEqual(scans, 1)
+        XCTAssertFalse(vm.isClearing)
+        XCTAssertFalse(vm.isScanning)
+        XCTAssertEqual(ToastCenter.shared.toasts.filter { !before.contains($0.id) }.map(\.style),
+                       [.success, .success])
     }
 
-    func testRunningBrowserFlagStartsNothing() async throws {
-        let (target, url) = try entry(id: "com.cacfixture.browser", isRunning: true)
-        let before = ToastCenter.shared.toasts.count
-        let vm = PrivacyViewModel()
+    func testRunningBrowserNeedsItsOwnQuitAuthorization() async throws {
+        let (newlyRunning, runningURL) = try entry(id: "com.cacfixture.started")
+        let (authorized, authorizedURL) = try entry(id: "com.cacfixture.authorized", isRunning: true)
+        let before = Set(ToastCenter.shared.toasts.map(\.id))
+        var running = Set([newlyRunning.id, authorized.id])
+        var quitRequests: [String] = []
+        let vm = PrivacyViewModel(scan: { [] }, invalidateStorage: { _ in },
+                                  isRunning: { running.contains($0) }, requestQuit: {
+            quitRequests.append($0)
+            running.remove($0)
+        })
 
-        await vm.clearHistory(for: target)
+        await vm.clearHistory(for: [newlyRunning, authorized], authorizedToQuit: [authorized.id])
 
-        XCTAssertTrue(fm.fileExists(atPath: url.path))
-        XCTAssertEqual(ToastCenter.shared.toasts.count, before)
+        XCTAssertEqual(quitRequests, [authorized.id])
+        XCTAssertTrue(fm.fileExists(atPath: runningURL.path))
+        XCTAssertFalse(fm.fileExists(atPath: authorizedURL.path))
+        let feedback = ToastCenter.shared.toasts.filter { !before.contains($0.id) }
+        XCTAssertEqual(feedback.map(\.style), [.error, .success])
+        XCTAssertEqual(feedback.first?.title, Localizer.shared.f("privacy.startedFmt", newlyRunning.name))
     }
 
-    func testBusyViewModelStartsNothing() async throws {
+    func testScanningViewModelRejectsClear() async throws {
         let (target, url) = try entry(id: "com.cacfixture.browser")
-        let vm = PrivacyViewModel()
-
+        let vm = PrivacyViewModel(scan: { [] }, invalidateStorage: { _ in },
+                                  isRunning: { _ in false }, requestQuit: { _ in XCTFail() })
         vm.isScanning = true
-        await vm.clearHistory(for: target)
-        vm.isScanning = false
-        vm.clearingID = "another"
-        await vm.clearHistory(for: target)
 
+        let accepted = await vm.clearHistory(for: [target], authorizedToQuit: [])
+
+        XCTAssertFalse(accepted)
         XCTAssertTrue(fm.fileExists(atPath: url.path))
-        XCTAssertEqual(vm.clearingID, "another")
     }
 
-    func testBrowserThatStartedDuringTheDialogGetsAnErrorToastAndKeepsItsFiles() async throws {
-        let (target, url) = try entry(id: "com.apple.finder", isRunning: false)
-        let before = ToastCenter.shared.toasts.count
-        let vm = PrivacyViewModel()
-
-        await vm.clearHistory(for: target)
-
-        XCTAssertTrue(fm.fileExists(atPath: url.path))
-        XCTAssertEqual(ToastCenter.shared.toasts.count, before + 1)
-        XCTAssertEqual(ToastCenter.shared.toasts.last?.style, .error)
+    private actor ScanProbe {
+        private(set) var scans = 0
+        func recordScan() { scans += 1 }
     }
 }
