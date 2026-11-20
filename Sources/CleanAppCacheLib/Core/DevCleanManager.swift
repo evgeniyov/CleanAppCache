@@ -219,25 +219,43 @@ public actor DevCleanManager {
 
     // MARK: - Project artifacts (node_modules / target / .build across ~)
 
-    /// Scans the home folder (up to 6 levels deep, skipping the trees
-    /// `projectFindArguments(home:)` prunes) for per-project build artifacts,
-    /// sizes them with the shared batched-du path and attaches the project's
-    /// last-modified date.
     public func scanProjects() async -> [ProjectArtifact] {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let candidates = Self.projectCandidates(home: home)
-        guard !candidates.isEmpty else { return [] }
+        await scanProjectsWithReport().artifacts
+    }
 
+    func scanProjectsWithReport(home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                                storage: StorageManager = .shared, timeLimit: TimeInterval = 60) async
+        -> (artifacts: [ProjectArtifact], skipped: ScanSkipSummary) {
+        let deadline = DispatchTime.now() + timeLimit
+        let found = await Self.projectCandidates(home: home.path, deadline: deadline)
+        let candidates = found.candidates
+        var skipped = ScanSkipSummary()
+        if let reason = found.skipReason { skipped.record(home, reason: reason) }
+        guard !candidates.isEmpty, !Task.isCancelled else { return ([], skipped) }
         let identities = Dictionary(uniqueKeysWithValues: candidates.compactMap { candidate in
             RemovalIdentity(at: candidate.0).map { (candidate.0, $0) }
         })
-        let sizes = await StorageManager.shared.bulkDirectorySizes(
-            urls: candidates.map(\.0), timeout: 60)
+        let generation = await storage.diskCache.generation
+        let sizes = await DirectorySizeProbe.measureConcurrently(
+            candidates.map(\.0).filter { identities[$0] != nil }, deadline: deadline, parallelism: 4
+        ) { url, timeout in
+            await storage.bulkDirectorySizes(urls: [url], timeout: timeout)[url.path]
+        }
+        let currentGeneration = await storage.diskCache.generation
+        guard !Task.isCancelled else { return ([], skipped) }
 
         var artifacts: [ProjectArtifact] = []
+        let missingSizeReason: ScanSkipReason = DispatchTime.now() >= deadline ? .verificationLimit : .unreadable
         for (url, kind) in candidates {
-            let size = sizes[url.path] ?? 0
-            guard size > 0, let identity = identities[url], identity.matches(url) else { continue }
+            guard let identity = identities[url], identity.matches(url) else {
+                skipped.record(url, reason: .unreadable)
+                continue
+            }
+            guard currentGeneration == generation, let size = sizes[url.path] else {
+                skipped.record(url, reason: missingSizeReason)
+                continue
+            }
+            guard size > 0 else { continue }
             let parent = url.deletingLastPathComponent()
             let modified = (try? parent.resourceValues(forKeys: [.contentModificationDateKey]))?
                 .contentModificationDate
@@ -251,40 +269,52 @@ public actor DevCleanManager {
             artifact.removalIdentity = identity
             artifacts.append(artifact)
         }
-        return artifacts.sorted { $0.size > $1.size }
+        return (artifacts.sorted { $0.size > $1.size }, skipped)
     }
 
     /// Artifact directories under `home` with their project's marker file
     /// beside them — `package.json`, `Cargo.toml` or `Package.swift` — at most
     /// 300 of them.
-    nonisolated static func projectCandidates(home: String) -> [(URL, ProjectArtifact.Kind)] {
-        guard let out = runFind(projectFindArguments(home: home)) else { return [] }
+    nonisolated static func projectCandidates(home: String, deadline: DispatchTime = .now() + 60) async
+        -> (candidates: [(URL, ProjectArtifact.Kind)], skipReason: ScanSkipReason?) {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard now < deadline.uptimeNanoseconds else { return ([], .verificationLimit) }
+        let timeout = min(45, Double(deadline.uptimeNanoseconds - now) / 1_000_000_000)
+        guard let response = await DirectorySizeProbe.captureResponse(
+            executable: URL(fileURLWithPath: "/usr/bin/find"),
+            arguments: projectFindArguments(home: home), timeout: timeout
+        ) else { return ([], .unreadable) }
 
         let fm = FileManager.default
+        let reason: ScanSkipReason? = response.succeeded ? nil : (response.timedOut ? .verificationLimit : .unreadable)
         var candidates: [(URL, ProjectArtifact.Kind)] = []
-        for raw in out.split(separator: "\0") {
-            let path = String(raw)
-            let url = URL(fileURLWithPath: path)
+        guard let end = response.data.lastIndex(of: 0) else { return ([], reason) }
+        for raw in response.data[..<end].split(separator: 0) {
+            guard !Task.isCancelled else { return ([], reason) }
+            guard DispatchTime.now() < deadline else { return (candidates, .verificationLimit) }
+            let url = URL(fileURLWithPath: String(decoding: raw, as: UTF8.self))
             guard Self.isOutsidePackage(url) else { continue }
             let parent = url.deletingLastPathComponent()
+            let kind: ProjectArtifact.Kind
             switch url.lastPathComponent {
             case "node_modules":
                 // Real project = package.json next to it.
                 guard fm.fileExists(atPath: parent.appendingPathComponent("package.json").path) else { continue }
-                candidates.append((url, .node))
+                kind = .node
             case "target":
                 // Rust target dirs only (a folder named "target" is common noise).
                 guard fm.fileExists(atPath: parent.appendingPathComponent("Cargo.toml").path) else { continue }
-                candidates.append((url, .cargo))
+                kind = .cargo
             case ".build":
                 guard fm.fileExists(atPath: parent.appendingPathComponent("Package.swift").path) else { continue }
-                candidates.append((url, .swiftpm))
+                kind = .swiftpm
             default:
                 continue
             }
-            if candidates.count >= 300 { break }
+            guard candidates.count < 300 else { return (candidates, .verificationLimit) }
+            candidates.append((url, kind))
         }
-        return candidates
+        return (candidates, reason)
     }
 
     /// One `find` pass for all three artifact names under `home`.
@@ -358,25 +388,6 @@ public actor DevCleanManager {
             escaped.append(character)
         }
         return escaped
-    }
-
-    /// Timeout-guarded `find` returning raw stdout, or nil on failure.
-    private nonisolated static func runFind(_ args: [String], timeout: TimeInterval = 45) -> String? {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/find")
-        task.arguments = args
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
-        do { try task.run() } catch { return nil }
-        let watchdog = DispatchWorkItem { if task.isRunning { task.terminate() } }
-        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        task.waitUntilExit()
-        watchdog.cancel()
-        // find may exit non-zero on permission errors while still producing
-        // useful output — keep whatever it printed.
-        return String(decoding: data, as: UTF8.self)
     }
 
     // MARK: - Cleaning

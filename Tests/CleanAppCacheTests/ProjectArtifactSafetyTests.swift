@@ -35,7 +35,7 @@ final class ProjectArtifactSafetyTests: XCTestCase {
                         uvCleaner: UvCacheCleaner(home: root, environment: [:], discoverExecutable: false))
     }
 
-    func testProjectSearchSkipsApplicationAndCodePackagesOutsideApplications() throws {
+    func testProjectSearchSkipsApplicationAndCodePackagesOutsideApplications() async throws {
         let ordinary = [
             try artifact("Projects/web"),
             try artifact("Projects/crate", kind: .cargo),
@@ -47,8 +47,8 @@ final class ProjectArtifactSafetyTests: XCTestCase {
             _ = try artifact("Documents/Runtime.\(suffix)/Resources/component")
         }
 
-        let found = DevCleanManager.projectCandidates(home: root.path)
-        XCTAssertEqual(Set(found.map { $0.0.path }), Set(ordinary.map { $0.url.path }))
+        let found = await DevCleanManager.projectCandidates(home: root.path)
+        XCTAssertEqual(Set(found.candidates.map { $0.0.path }), Set(ordinary.map { $0.url.path }))
     }
 
     func testProjectCleanupRefusesRuntimeModulesAndKeepsOrdinaryBuildArtifactsWorking() async throws {

@@ -118,7 +118,7 @@ final class DevCleanManagerTests: XCTestCase {
 
     // MARK: - Project search
 
-    func testProjectSearchSkipsHiddenTopLevelFoldersLibraryAndApplications() throws {
+    func testProjectSearchSkipsHiddenTopLevelFoldersLibraryAndApplications() async throws {
         let home = temp.appendingPathComponent("home")
         func project(_ relative: String, artifact: String, marker: String) throws {
             let dir = home.appendingPathComponent(relative)
@@ -141,8 +141,9 @@ final class DevCleanManagerTests: XCTestCase {
         try FileManager.default.createDirectory(
             at: home.appendingPathComponent("Projects/loose/node_modules"), withIntermediateDirectories: true)
 
-        let found = DevCleanManager.projectCandidates(home: home.path)
-            .map { String($0.0.path.dropFirst(home.path.count + 1)) }
+        let result = await DevCleanManager.projectCandidates(home: home.path)
+        let found = result.candidates.map { String($0.0.path.dropFirst(home.path.count + 1)) }
+        XCTAssertNil(result.skipReason)
         XCTAssertEqual(Set(found), ["Projects/web/node_modules",
                                     "Projects/crate/target",
                                     "Projects/.tools/pkg/.build"])

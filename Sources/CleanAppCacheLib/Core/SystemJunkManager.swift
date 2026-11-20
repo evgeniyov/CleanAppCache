@@ -51,6 +51,7 @@ public struct SystemJunkEntry: Identifiable, Sendable {
     public let urls:      [URL]
     public let totalSize: UInt64
     let removalIdentities: [URL: RemovalIdentity]
+    var hasSharedAllocation = false
 
     public init(category: Category, urls: [URL], totalSize: UInt64) {
         self.id = UUID()
@@ -61,12 +62,13 @@ public struct SystemJunkEntry: Identifiable, Sendable {
     }
 
     init(id: UUID = UUID(), category: Category, urls: [URL], totalSize: UInt64,
-         removalIdentities: [URL: RemovalIdentity]) {
+         removalIdentities: [URL: RemovalIdentity], hasSharedAllocation: Bool = false) {
         self.id = id
         self.category = category
         self.urls = urls
         self.totalSize = totalSize
         self.removalIdentities = removalIdentities
+        self.hasSharedAllocation = hasSharedAllocation
     }
 
     func matches(_ url: URL) -> Bool { removalIdentities[url]?.matches(url) == true }
@@ -77,7 +79,8 @@ public struct SystemJunkEntry: Identifiable, Sendable {
     public func keeping(urls: [URL], totalSize: UInt64) -> SystemJunkEntry {
         let surviving = Set(urls)
         return SystemJunkEntry(id: id, category: category, urls: urls, totalSize: totalSize,
-                               removalIdentities: removalIdentities.filter { surviving.contains($0.key) })
+                               removalIdentities: removalIdentities.filter { surviving.contains($0.key) },
+                               hasSharedAllocation: hasSharedAllocation)
     }
 
     public var formattedSize: String {
@@ -96,6 +99,13 @@ public actor SystemJunkManager {
     public static let shared = SystemJunkManager()
     private init() {}
     private static let downloadActivityWindow: TimeInterval = 600
+    private struct CachedGroup {
+        let identities: [URL: RemovalIdentity]
+        let generation: UUID
+        let expires: DispatchTime
+        let size: GroupSize
+    }
+    private var sizeCache: [SystemJunkEntry.Category: CachedGroup] = [:]
 
     // MARK: Scan
 
@@ -234,16 +244,87 @@ public actor SystemJunkManager {
                      to entries: inout [SystemJunkEntry], skipped: inout ScanSkipSummary) async {
         guard !urls.isEmpty else { return }
         let identities = urls.reduce(into: [URL: RemovalIdentity]()) { $0[$1] = RemovalIdentity(at: $1) }
-        let sizes = await StorageManager.shared.bulkDirectorySizes(urls: urls, timeout: 30)
-        let measured = urls.filter { sizes[$0.path] != nil && identities[$0]?.matches($0) == true }
-        let measuredSet = Set(measured)
-        for url in urls where !measuredSet.contains(url) {
+        let cache = StorageManager.shared.diskCache
+        let generation = await cache.generation
+        guard !Task.isCancelled else { return }
+        let size: GroupSize
+        if let cached = sizeCache[category], cached.generation == generation,
+           cached.identities == identities, DispatchTime.now() < cached.expires {
+            size = cached.size
+        } else {
+            size = Self.measureGroup(urls, identities: identities)
+            if size.measured.count == urls.count {
+                sizeCache[category] = CachedGroup(identities: identities, generation: generation,
+                                                 expires: DispatchTime.now() + 3600, size: size)
+            }
+        }
+        guard !Task.isCancelled else { return }
+        let groupIsCurrent = await cache.generation == generation
+            && size.measured.allSatisfy { identities[$0]?.matches($0) == true }
+        let measured = groupIsCurrent ? size.measured : []
+        for url in urls where !measured.contains(url) {
             skipped.record(url, reason: .unreadable)
         }
         guard !measured.isEmpty else { return }
-        let total = measured.reduce(UInt64(0)) { $0 + (sizes[$1.path] ?? 0) }
-        entries.append(SystemJunkEntry(category: category, urls: measured, totalSize: total,
-                                       removalIdentities: identities.filter { measuredSet.contains($0.key) }))
+        entries.append(SystemJunkEntry(category: category, urls: urls.filter(measured.contains), totalSize: size.bytes,
+                                       removalIdentities: identities.filter { measured.contains($0.key) },
+                                       hasSharedAllocation: size.hasSharedAllocation))
+    }
+
+    struct GroupSize: Sendable {
+        var bytes: UInt64 = 0
+        var measured: Set<URL> = []
+        var hasSharedAllocation = false
+    }
+
+    private struct Inode: Hashable {
+        let device: dev_t
+        let number: ino_t
+    }
+
+    func measureRemaining(_ entry: SystemJunkEntry) -> GroupSize {
+        Self.measureGroup(entry.urls, identities: entry.removalIdentities)
+    }
+
+    nonisolated static func measureGroup(_ urls: [URL], identities: [URL: RemovalIdentity]) -> GroupSize {
+        var result = GroupSize()
+        var seen: Set<Inode> = []
+        let deadline = DispatchTime.now() + 30
+        for url in urls {
+            guard !Task.isCancelled, DispatchTime.now() < deadline else { break }
+            guard !result.measured.contains(url), let identity = identities[url], identity.matches(url),
+                  let path = strdup(url.path) else { continue }
+            defer { free(path) }
+            var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
+            guard let walk = fts_open(&paths, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nil) else { continue }
+            defer { fts_close(walk) }
+
+            // Commit an inode only when its whole root was readable and stable.
+            // A failed root must not consume the allocation of a surviving peer.
+            var newLinks: Set<Inode> = []
+            var bytes: UInt64 = 0
+            var complete = false
+            while !Task.isCancelled, DispatchTime.now() < deadline {
+                errno = 0
+                guard let entry = fts_read(walk)?.pointee else { complete = errno == 0; break }
+                let info = Int32(entry.fts_info)
+                if info == FTS_DNR || info == FTS_ERR || info == FTS_NS || info == FTS_DC { break }
+                if info == FTS_DP { continue }
+                guard let metadata = entry.fts_statp?.pointee else { break }
+                guard metadata.st_dev == identity.object.device else { continue }
+                if info != FTS_D, metadata.st_nlink > 1 {
+                    let inode = Inode(device: metadata.st_dev, number: metadata.st_ino)
+                    guard !seen.contains(inode), newLinks.insert(inode).inserted else { continue }
+                }
+                bytes += UInt64(max(0, metadata.st_blocks)) * 512
+            }
+            guard complete, identity.matches(url) else { continue }
+            seen.formUnion(newLinks)
+            result.bytes += bytes
+            result.measured.insert(url)
+        }
+        result.hasSharedAllocation = !seen.isEmpty
+        return result
     }
 
     private func subdirs(_ url: URL, skipped: inout ScanSkipSummary) -> [URL] {

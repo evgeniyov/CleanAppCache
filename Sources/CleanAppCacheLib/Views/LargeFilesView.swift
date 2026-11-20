@@ -122,17 +122,6 @@ public struct LargeFilesView: View {
     /// One menu open at a time. All three filters share this key.
     @State private var openFilter: String?
 
-    /// Why the last scan came back empty.
-    ///
-    /// `LargeFilesViewModel.scanForLargeFiles` swallows every failure
-    /// (`catch { return [] }`) and publishes no error, so "empty" and "broken"
-    /// arrive as the same value. The view reconstructs the reason once, when the
-    /// scan ends — otherwise a missing `find` or an unreadable root would render
-    /// as the "clean" empty state, which is a lie about the disk.
-    @State private var emptyReason: EmptyReason = .clean
-    @State private var lastScanDate: Date?
-    /// A cancelled scan is not a clean disk.
-    @State private var scanCancelled = false
     /// The scope the files on screen came from. Changing the chip discards the
     /// results, so the view model's scope always names what was measured — and
     /// unlike view `@State` it survives the tab switch that recreates this view,
@@ -176,12 +165,6 @@ public struct LargeFilesView: View {
     /// labels the truncation has to know it here.
     private let resultCap = 500
 
-    private enum EmptyReason: Equatable {
-        case clean
-        case noAccess
-        case failure(path: String, code: String)
-    }
-
     public init() {}
 
     /// checkbox 20 | file | kind 104 | modified 128 | size 80.
@@ -199,6 +182,9 @@ public struct LargeFilesView: View {
         VStack(spacing: 0) {
             ScreenBody {
                 header
+                if !viewModel.files.isEmpty, let notice = coverageNotice {
+                    TableFootnoteRow(text: notice.message)
+                }
                 content
             }
             if viewModel.selectedCount > 0 {
@@ -209,13 +195,7 @@ public struct LargeFilesView: View {
         .animation(Motion.panelReveal, value: viewModel.selectedCount > 0)
         // Clicking anywhere else closes the open filter menu.
         .onTapGesture { openFilter = nil }
-        // Without this, leaving the tab leaves a whole-disk `find` running orphaned.
-        // Through the view's own cancel, so `finishScan` cannot mistake the
-        // kill for a scan that ended and diagnose its emptiness.
         .onDisappear { cancelScan() }
-        .onChange(of: viewModel.isScanning) { scanning in
-            if !scanning { finishScan() }
-        }
     }
 
     // MARK: Header
@@ -291,16 +271,8 @@ public struct LargeFilesView: View {
     /// Applies a scan-parameter change and puts the screen back into its idle
     /// state, so the next scan is the user's decision rather than a silent
     /// relabelling of the last one.
-    ///
-    /// `scanCancelled` is raised first: `finishScan` runs whenever `isScanning`
-    /// falls, and the view model drops an in-flight scan here. That is not a scan
-    /// that ended, so its emptiness must not be diagnosed as "clean" or, worse,
-    /// send `diagnoseEmptyResult` to open the TCC database for nothing.
     private func discardResults(_ apply: () -> Void) {
-        scanCancelled = true
         apply()
-        lastScanDate = nil
-        emptyReason = .clean
         // The three column filters narrow results that are gone; carrying
         // them over would greet the next scan with "nothing matches".
         resetFilters()
@@ -404,38 +376,52 @@ public struct LargeFilesView: View {
 
     @ViewBuilder
     private var emptyState: some View {
-        if scanCancelled {
+        switch viewModel.scanOutcome {
+        case nil:
             idleState
-        } else {
-            switch emptyReason {
-            case .clean:
-                StateView(.clean(
-                    checked: loc.f("large.checkedFmt", scopeNote, viewModel.minSizeText),
-                    lastScan: lastScanDate,
-                    rescan: { runScan() }
-                ))
+        case .complete:
+            StateView(.clean(
+                checked: loc.f("large.checkedFmt", scopeNote, viewModel.minSizeText),
+                lastScan: viewModel.lastScanDate,
+                rescan: { runScan() }
+            ))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .card()
+        case .noAccess:
+            StateView(.noAccess(
+                missing: loc.s("fda.subtitle"),
+                openSettings: { FullDiskAccess.openSettings() },
+                scanAnyway: { runScan() }
+            ))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .card()
+        case let .failure(path, code):
+            StateView(.failure(path: path, code: code, retry: { runScan() }))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .card()
-
-            case .noAccess:
-                StateView(.noAccess(
-                    missing: loc.s("fda.subtitle"),
-                    openSettings: { FullDiskAccess.openSettings() },
-                    scanAnyway: { runScan() }
-                ))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .card()
-
-            case let .failure(path, code):
-                StateView(.failure(
-                    path: path,
-                    code: code,
-                    retry: { runScan() },
-                    copyDetails: nil
-                ))
+        case .limited, .unreadable:
+            if let notice = coverageNotice {
+                VStack(spacing: 8) {
+                    Text(notice.title)
+                        .font(Typo.bodyStrong)
+                    Text(notice.message)
+                        .font(Typo.secondary)
+                        .foregroundStyle(Palette.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 320)
+                    Button(loc.s("common.rescan")) { runScan() }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .card()
             }
+        }
+    }
+
+    private var coverageNotice: (title: String, message: String)? {
+        switch viewModel.scanOutcome {
+        case .limited: return (loc.s("large.partialTitle"), loc.s("large.partialHint"))
+        case .unreadable: return (loc.s("large.unreadableTitle"), loc.s("large.unreadableHint"))
+        default: return nil
         }
     }
 
@@ -652,39 +638,12 @@ public struct LargeFilesView: View {
     // MARK: Scan lifecycle
 
     private func runScan() {
-        scanCancelled = false
         viewModel.startScan()
     }
 
     private func cancelScan() {
-        scanCancelled = true
         viewModel.cancelScan()
     }
-
-    private func finishScan() {
-        guard !scanCancelled else { return }
-        lastScanDate = Date()
-        emptyReason = viewModel.files.isEmpty ? diagnoseEmptyResult() : .clean
-    }
-
-    /// Names the two ways the view model's `catch { return [] }` is reached, so a
-    /// broken scan reads as a failure instead of as an empty disk.
-    private func diagnoseEmptyResult() -> EmptyReason {
-        let fm = FileManager.default
-        if !fm.isExecutableFile(atPath: "/usr/bin/find") {
-            return .failure(path: "/usr/bin/find", code: "ENOENT")
-        }
-        if !fm.isReadableFile(atPath: scanRoot) {
-            return .failure(path: scanRoot, code: "EACCES")
-        }
-        // Probed once per scan, never per render: it opens the TCC database.
-        if viewModel.customSearchFolder == nil && !FullDiskAccess.isGranted() {
-            return .noAccess
-        }
-        return .clean
-    }
-
-    private var scanRoot: String { viewModel.searchRoot.path }
 
     private func reveal(_ file: LargeFile) {
         NSWorkspace.shared.selectFile(file.path, inFileViewerRootedAtPath: "")

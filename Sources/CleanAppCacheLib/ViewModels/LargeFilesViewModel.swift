@@ -110,6 +110,13 @@ public final class LargeFilesViewModel: ObservableObject {
     @Published public var currentScanPath = ""
     /// Whether the user has run a scan yet (drives the idle vs. empty state).
     @Published public var hasScanned = false
+    @Published private(set) var scanOutcome: ScanOutcome?
+    private(set) var lastScanDate: Date?
+
+    enum ScanOutcome: Equatable, Sendable {
+        case complete, limited, unreadable, noAccess
+        case failure(path: String, code: String)
+    }
 
     // Collector (DaisyDisk-style batch selection)
     @Published public var selected: Set<UUID> = []
@@ -157,6 +164,8 @@ public final class LargeFilesViewModel: ObservableObject {
         files = []
         selected = []
         hasScanned = false
+        scanOutcome = nil
+        lastScanDate = nil
         filterCache = nil
     }
 
@@ -285,7 +294,7 @@ public final class LargeFilesViewModel: ObservableObject {
 
     private var scanGeneration = UUID()
     private var scanTask: Task<Void, Never>?
-    private var findTask: Task<(files: [LargeFile], partial: Bool), Never>?
+    private var findTask: Task<(files: [LargeFile], outcome: ScanOutcome), Never>?
 
     public func startScan() {
         guard !isDeleting else { return }
@@ -297,12 +306,15 @@ public final class LargeFilesViewModel: ObservableObject {
         let generation = scanGeneration
         isScanning = true
         hasScanned = true
+        scanOutcome = nil
+        lastScanDate = nil
         files = []
         selected = []
         currentScanPath = ""
 
         let root = searchRoot
         let minBytes = minSize.bytes
+        let checkFullDiskAccess = customSearchFolder == nil
 
         // `find` blocks on a pipe read; run it off the main actor or the whole
         // UI freezes for as long as the scan takes (up to the 60 s watchdog
@@ -310,7 +322,7 @@ public final class LargeFilesViewModel: ObservableObject {
         // explicitly: it is *not* a child of `scanTask`, so cancelling the
         // parent alone would never reach it.
         let work = Task.detached(priority: .userInitiated) { [weak self] in
-            await Self.scanForLargeFiles(root: root, minBytes: minBytes) { [weak self] path in
+            await Self.scanForLargeFiles(root: root, minBytes: minBytes, checkFullDiskAccess: checkFullDiskAccess) { [weak self] path in
                 Task { @MainActor in
                     guard let self, self.scanGeneration == generation, self.isScanning else { return }
                     self.currentScanPath = path
@@ -321,20 +333,13 @@ public final class LargeFilesViewModel: ObservableObject {
 
         scanTask = Task {
             let found = await work.value
-            guard !Task.isCancelled, !work.isCancelled else { return }
+            guard !Task.isCancelled, !work.isCancelled, self.scanGeneration == generation else { return }
             self.files = found.files
+            self.lastScanDate = Date()
+            self.scanOutcome = found.outcome
             self.isScanning = false
             self.findTask = nil
-            // A cut-short search ranks only what it reached; presenting that
-            // as "the largest files" — or an empty list as a clean disk —
-            // would claim more than was looked at.
-            if found.partial {
-                let loc = Localizer.shared
-                ToastCenter.shared.show(Toast(style: .warning,
-                                              title: loc.s("large.partialTitle"),
-                                              message: loc.s("large.partialHint"),
-                                              duration: 10))
-            }
+            self.scanTask = nil
         }
     }
 
@@ -346,30 +351,28 @@ public final class LargeFilesViewModel: ObservableObject {
         findTask = nil
         scanTask?.cancel()
         scanTask = nil
-        // A cancelled scan produced no finding: `startScan` already dropped the
-        // previous list, so leaving `hasScanned` raised would present the empty
-        // `files` as a clean disk once the view's own "cancelled" flag dies
-        // with the tab switch. Back to idle — the state that actually happened.
         if isScanning { hasScanned = false }
         isScanning = false
         currentScanPath = ""
     }
 
-    private nonisolated static func scanForLargeFiles(
-        root: URL,
-        minBytes: UInt64,
-        progress: (@Sendable (String) -> Void)?
-    ) async -> (files: [LargeFile], partial: Bool) {
-        let path = root.path
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/find")
-        process.arguments = [
-            path,
+    nonisolated static func findArguments(root: URL, minBytes: UInt64) -> [String] {
+        // Prune before testing size so inaccessible, excluded trees never get walked.
+        let excluded = ["*/.Trash", "*/.Spotlight*", "*/.fseventsd", "*/.DocumentRevisions*",
+                        "*/Library/Mobile Documents", "*/Library/CloudStorage", "*/Backups.backupdb",
+                        "*/.MobileBackups"]
+        let exclusions = excluded.enumerated().flatMap { index, pattern in
+            index == 0 ? ["-path", pattern] : ["-o", "-path", pattern]
+        }
+        return [
+            root.path,
             // Stay on the volume we were pointed at. Without this, scanning "/"
             // walks every mounted external disk, Time Machine target and network
             // share, and offers their contents up for deletion in one click.
             "-xdev",
+            "("
+        ] + exclusions + [
+            ")", "-prune", "-o",
             "-type", "f",
             // Filter in exact bytes (`c` suffix). Using `…M` integer-divides the
             // threshold to whole megabytes, so any sub-1 MB minimum collapses to
@@ -377,64 +380,48 @@ public final class LargeFilesViewModel: ObservableObject {
             // it disagrees at the boundary with the byte-exact `fileSize` filter
             // applied to the results.
             "-size", "+\(minBytes)c",
-            "-not", "-path", "*/.Trash/*",
-            "-not", "-path", "*/.Spotlight*",
-            "-not", "-path", "*/.fseventsd/*",
-            "-not", "-path", "*/.DocumentRevisions*",
-            // iCloud Drive and the other cloud providers: deleting here
-            // propagates to every device the user owns, and a local Undo does
-            // not put the file back in the cloud.
-            "-not", "-path", "*/Library/Mobile Documents/*",
-            "-not", "-path", "*/Library/CloudStorage/*",
-            "-not", "-path", "*/Backups.backupdb/*",
-            "-not", "-path", "*/.MobileBackups/*",
             "-print0"
         ]
+    }
 
+    nonisolated static func scanForLargeFiles(
+        root: URL, minBytes: UInt64, checkFullDiskAccess: Bool = false,
+        findExecutable: URL = URL(fileURLWithPath: "/usr/bin/find"),
+        statLimit: Int = largeFileStatLimit, timeout: TimeInterval = 60,
+        progress: (@Sendable (String) -> Void)? = nil
+    ) async -> (files: [LargeFile], outcome: ScanOutcome) {
+        guard !Task.isCancelled else { return ([], .limited) }
+        let fm = FileManager.default
+        guard fm.isReadableFile(atPath: root.path) else {
+            let code = fm.fileExists(atPath: root.path) ? "EACCES" : "ENOENT"
+            return ([], .failure(path: root.path, code: code))
+        }
+        let process = Process()
+        process.executableURL = findExecutable
+        process.arguments = findArguments(root: root, minBytes: minBytes)
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
 
-        do {
-            try process.run()
-            let timedOut = WatchdogFlag()
-            let watchdog = DispatchWorkItem {
-                if process.isRunning { timedOut.set(); process.terminate() }
-            }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 60, execute: watchdog)
+        do { try process.run() }
+        catch { return ([], .failure(path: findExecutable.path, code: String((error as NSError).code))) }
+        let watchdog = DispatchWorkItem {
+            if process.isRunning { process.terminate() }
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
+        defer { watchdog.cancel() }
 
-            // Task cancellation cannot interrupt the blocking read, and until
-            // the watchdog fired (60 s) a cancelled scan left `find` traversing
-            // the whole volume at full I/O. Terminating the process closes the
-            // pipe's write end, so the read returns promptly. `onCancel` also
-            // fires immediately when the task is already cancelled at entry.
-            let data = await withTaskCancellationHandler {
-                let d = pipe.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-                return d
-            } onCancel: {
-                if process.isRunning { process.terminate() }
-            }
-            watchdog.cancel()
-            if Task.isCancelled { return ([], false) }
-
-            // Lossy decode: one path that isn't valid UTF-8 shouldn't discard
-            // the entire scan.
-            let output = String(decoding: data, as: UTF8.self)
-            let paths = output.split(separator: "\0").map(String.init)
+        // Termination closes the write end and wakes a blocked read, including
+        // cancellation between launching the process and installing the handler.
+        return await withTaskCancellationHandler {
+            let reader = pipe.fileHandleForReading
             var files: [LargeFile] = []
-
-            // Stat everything `find` matched, then sort, then cap. Capping the
-            // *input* meant taking the first 500 paths in filesystem-traversal
-            // order and calling them "the largest files" — the actual largest
-            // file could easily be number 501 and never appear.
-            files.reserveCapacity(min(paths.count, largeFileStatLimit))
-            // The path line is read by a person, so ten updates a second is
-            // all it can use. Reported per file, it would take up to 20,000
-            // main-actor hops and redraws within a few seconds.
+            var pending = Data()
+            var count = 0
+            var unreadable = false
             var lastProgress: UInt64 = 0
-            for filePath in paths.prefix(largeFileStatLimit) {
-                if Task.isCancelled { return ([], false) }
+
+            func inspect(_ filePath: String) {
                 let url = URL(fileURLWithPath: filePath)
                 let now = DispatchTime.now().uptimeNanoseconds
                 if now &- lastProgress >= 100_000_000 {
@@ -445,7 +432,7 @@ public final class LargeFilesViewModel: ObservableObject {
                 // repository objects, VM disks, media-library internals and
                 // installed software; listing them invites a delete that fails.
                 guard PathGuard.reject(url) == nil,
-                      let snapshot = FileSnapshot(at: url), snapshot.isRegularFile else { continue }
+                      let snapshot = FileSnapshot(at: url), snapshot.isRegularFile else { return }
                 // Allocated size, the space deleting the file gives back: a
                 // sparse disk image (`Docker.raw`) is tens of gigabytes by
                 // length and a fraction of that on disk.
@@ -454,7 +441,7 @@ public final class LargeFilesViewModel: ObservableObject {
                               .contentModificationDateKey, .contentAccessDateKey]
                 ),
                    let size = v.totalFileAllocatedSize ?? v.fileAllocatedSize ?? v.fileSize,
-                   UInt64(size) >= minBytes {
+                   size >= 0, UInt64(size) >= minBytes {
                     files.append(LargeFile(
                         url: url,
                         size: UInt64(size),
@@ -467,31 +454,52 @@ public final class LargeFilesViewModel: ObservableObject {
                     ))
                 }
             }
-            let fm = FileManager.default
+
+            do {
+                while count < statLimit, !Task.isCancelled,
+                      let chunk = try reader.read(upToCount: 16_384), !chunk.isEmpty {
+                    pending.append(chunk)
+                    var start = pending.startIndex
+                    while count < statLimit, !Task.isCancelled,
+                          let end = pending[start...].firstIndex(of: 0) {
+                        count += 1
+                        if let path = String(data: pending[start..<end], encoding: .utf8) {
+                            inspect(path)
+                        } else {
+                            unreadable = true
+                        }
+                        start = end + 1
+                    }
+                    pending = Data(pending[start...])
+                }
+            } catch {
+                unreadable = true
+            }
+            let limited = count >= statLimit
+            if limited || unreadable || Task.isCancelled {
+                if process.isRunning { process.terminate() }
+                try? reader.close()
+            }
+            process.waitUntilExit()
+            watchdog.cancel()
+            guard !Task.isCancelled else { return ([], .limited) }
+
             let ranked = files.sorted { $0.size > $1.size }.prefix(largeFileResultLimit).compactMap { file -> LargeFile? in
                 guard let snapshot = file.snapshot, snapshot.matches(file.url) else { return nil }
                 return LargeFile(url: file.url, size: file.size,
                                  modified: file.modified, accessed: file.accessed,
                                  isDeletable: fm.isDeletableFile(atPath: file.path), snapshot: snapshot)
             }
-            // `find` exits 1 after a complete walk that met an unreadable
-            // folder, which without Full Disk Access is every walk of the home
-            // folder; that is the banner's message, not a cut-short list. Only
-            // a walk stopped early (the watchdog, a signal) or matches past the
-            // stat cap leave larger files out.
-            let stopped = timedOut.isSet || process.terminationReason == .uncaughtSignal
-            return (ranked, stopped || paths.count > largeFileStatLimit)
-        } catch {
-            return ([], true)
+            if limited || process.terminationReason == .uncaughtSignal { return (ranked, .limited) }
+            if unreadable || !pending.isEmpty || process.terminationStatus != 0 {
+                if ranked.isEmpty, checkFullDiskAccess, !FullDiskAccess.isGranted() {
+                    return ([], .noAccess)
+                }
+                return (ranked, .unreadable)
+            }
+            return (ranked, .complete)
+        } onCancel: {
+            if process.isRunning { process.terminate() }
         }
     }
-
-    /// Set by the watchdog when it stops `find`; read after the pipe closes.
-    private final class WatchdogFlag: @unchecked Sendable {
-        private let lock = NSLock()
-        private var value = false
-        func set() { lock.lock(); value = true; lock.unlock() }
-        var isSet: Bool { lock.lock(); defer { lock.unlock() }; return value }
-    }
-
 }

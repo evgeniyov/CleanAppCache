@@ -64,9 +64,20 @@ public struct SystemDataComponent: Identifiable, Sendable {
     public let bytes: UInt64?
     /// Optional item count (e.g. number of snapshots / swap files).
     public let count: Int?
+    public let isPartial: Bool
 
-    public var formattedSize: String? {
-        bytes.map { Fmt.bytes(Int64($0)) }
+    init(kind: Kind, bytes: UInt64?, count: Int?, isPartial: Bool = false) {
+        self.kind = kind
+        self.bytes = bytes
+        self.count = count
+        self.isPartial = isPartial
+    }
+
+    @MainActor public var formattedSize: String? {
+        guard let bytes else { return nil }
+        let size = Fmt.bytes(Int64(clamping: bytes))
+        let loc = Localizer.shared
+        return isPartial ? loc.f("sysdata.partialSizeFmt", size) : size
     }
 }
 
@@ -111,42 +122,42 @@ public actor SystemDataManager {
         let vm = directSize(of: "/private/var/vm")
         components.append(SystemDataComponent(kind: .swapVM, bytes: vm.bytes, count: vm.count))
 
-        // Bigger trees: measure via the shared batched-du path (cached, timed).
-        let sized = await StorageManager.shared.bulkDirectorySizes(
-            urls: [
-                URL(fileURLWithPath: "/Library/Caches"),
-                URL(fileURLWithPath: "/private/var/folders"),
-                URL(fileURLWithPath: "/private/var/log"),
-                URL(fileURLWithPath: "/Library/Logs"),
-                URL(fileURLWithPath: "/System/Volumes/Data/.Spotlight-V100"),
-                // /Library/Updates is vestigial on macOS 13+ — staged OS
-                // updates live on the Update volume. Both are measured; du
-                // degrades to whatever it can read.
-                URL(fileURLWithPath: "/Library/Updates"),
-                URL(fileURLWithPath: "/System/Volumes/Update")
-            ],
-            timeout: 45
-        )
-        func sum(_ paths: [String]) -> UInt64? {
-            let total = paths.reduce(UInt64(0)) { $0 + (sized[$1] ?? 0) }
-            return total > 0 ? total : nil
+        let roots: [(SystemDataComponent.Kind, [String])] = [
+            (.systemCaches, ["/Library/Caches", "/private/var/folders"]),
+            (.systemLogs, ["/private/var/log", "/Library/Logs"]),
+            (.spotlight, ["/System/Volumes/Data/.Spotlight-V100"]),
+            (.updates, ["/Library/Updates", "/System/Volumes/Update"])
+        ]
+        let cache = StorageManager.shared.diskCache
+        let generation = await cache.generation
+        let sized = await DirectorySizeProbe.measureConcurrently(
+            roots.flatMap(\.1).map { URL(fileURLWithPath: $0) },
+            deadline: DispatchTime.now() + 45, parallelism: 4
+        ) { url, timeout in
+            if let cached = await cache.getSize(for: url.path) {
+                return DirectorySizeProbe.Measurement(bytes: cached, complete: true)
+            }
+            let measurement = await DirectorySizeProbe.measureRoot(url, timeout: timeout)
+            if measurement.complete, let bytes = measurement.bytes, !Task.isCancelled {
+                _ = await cache.setSize(bytes, for: url.path, isDirectory: true, ifGeneration: generation)
+            }
+            return measurement
         }
-        components.append(SystemDataComponent(
-            kind: .systemCaches,
-            bytes: sum(["/Library/Caches", "/private/var/folders"]), count: nil))
-        components.append(SystemDataComponent(
-            kind: .systemLogs,
-            bytes: sum(["/private/var/log", "/Library/Logs"]), count: nil))
-        components.append(SystemDataComponent(
-            kind: .spotlight,
-            bytes: sum(["/System/Volumes/Data/.Spotlight-V100"]), count: nil))
-        components.append(SystemDataComponent(
-            kind: .updates,
-            bytes: sum(["/Library/Updates", "/System/Volumes/Update"]), count: nil))
+        let current = await cache.generation == generation ? sized : [:]
+        for (kind, paths) in roots {
+            components.append(Self.measuredComponent(kind, paths: paths, measured: current))
+        }
 
         // Largest first; unknown sizes at their natural (enum) position end.
         let ordered = components.sorted { ($0.bytes ?? 0) > ($1.bytes ?? 0) }
         return ScanOutcome(components: ordered, snapshots: snapshots)
+    }
+
+    nonisolated static func measuredComponent(_ kind: SystemDataComponent.Kind, paths: [String],
+                                              measured: [String: DirectorySizeProbe.Measurement]) -> SystemDataComponent {
+        let total = paths.compactMap { measured[$0]?.bytes }.reduce(0, +)
+        return SystemDataComponent(kind: kind, bytes: total > 0 ? total : nil, count: nil,
+                                   isPartial: paths.contains { measured[$0]?.complete != true })
     }
 
     // MARK: Purgeable

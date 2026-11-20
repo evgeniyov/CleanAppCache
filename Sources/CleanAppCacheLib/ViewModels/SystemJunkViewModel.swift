@@ -173,6 +173,17 @@ public final class SystemJunkViewModel: ObservableObject {
 
         let cleanedSet = Set(cleanedIDs)
         entries.removeAll   { cleanedSet.contains($0.id) }
+        for index in entries.indices {
+            let entry = entries[index]
+            guard entry.hasSharedAllocation,
+                  toClean.contains(where: { $0.id == entry.id && $0.urls.count > entry.urls.count }) else { continue }
+            // Subtracting moved bytes drops blocks still counted by a surviving link.
+            let size = await manager.measureRemaining(entry)
+            entries[index] = entry.keeping(urls: entry.urls, totalSize: size.bytes)
+            for url in entry.urls where !size.measured.contains(url) {
+                skipped.record(url, reason: .unreadable)
+            }
+        }
         selected.subtract(cleanedSet)
         isCleaning  = false
         currentScan = ""

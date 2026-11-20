@@ -96,6 +96,27 @@ final class SystemJunkViewModelTests: XCTestCase {
         XCTAssertFalse(fm.fileExists(atPath: other.path))
     }
 
+    func testPartiallyMovedGroupStillCountsTheSurvivingHardLink() async throws {
+        let moved = try folder("moved")
+        let stuck = try folder("stuck")
+        let survivingLink = stuck.appendingPathComponent("link")
+        try fm.linkItem(at: moved.appendingPathComponent("file"), to: survivingLink)
+        let urls = [moved, stuck]
+        let identities = RemovalIdentity.capture(urls)
+        let group = SystemJunkManager.measureGroup(urls, identities: identities)
+        let partial = SystemJunkEntry(category: .quickLookCache, urls: urls, totalSize: group.bytes,
+                                      removalIdentities: identities, hasSharedAllocation: group.hasSharedAllocation)
+        let vm = viewModel(entries: [partial], mover: mover(refusing: [stuck]))
+
+        await vm.clean()
+
+        let remaining = await DirectorySizeProbe.measureRoot(stuck, timeout: 5)
+        XCTAssertTrue(remaining.complete)
+        XCTAssertEqual(vm.entries.first?.urls, [stuck])
+        XCTAssertEqual(vm.entries.first?.totalSize, remaining.bytes)
+        XCTAssertTrue(fm.fileExists(atPath: survivingLink.path))
+    }
+
     func testNothingMovedKeepsEveryRowSelectedAndOnDisk() async throws {
         let stuck = try folder("stuck")
         let only = entry([stuck])
