@@ -224,6 +224,9 @@ final class SecondPassRegressionTests: XCTestCase {
         try FileManager.default.removeItem(at: bin.appendingPathComponent(group.files[2].url.lastPathComponent))
         let undo = try XCTUnwrap(ToastCenter.shared.toasts.last(where: { $0.action != nil })?.action)
         undo()
+        // Undo refreshes the restored snapshots off the main actor.
+        for _ in 0..<100 where vm.isDeleting { try await Task.sleep(nanoseconds: 50_000_000) }
+        XCTAssertFalse(vm.isDeleting)
         XCTAssertEqual(vm.groups.first?.files.count, 2)
         XCTAssertTrue(vm.groups.flatMap(\.files).allSatisfy { !RemovalCheck.isMissing($0.url) })
     }
