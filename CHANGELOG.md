@@ -6,6 +6,61 @@ GitHub Release description (`v1.0.0` and `v1.0` both match `## 1.0`).
 
 ## Unreleased
 
+## 0.9.2 — 2026-11-20
+
+### Fixed
+
+- Uninstaller: an app started while an uninstall is under way, or while the
+  password dialog is open, is kept together with its data. A folder that
+  merely ends in `.app` is no longer offered as an app, and data matched by
+  name stays when another installed app uses that name.
+- Uninstaller: when one item of a password-protected batch fails, the items
+  removed before it are no longer reported as still installed or left out of
+  History.
+- Orphans: a privileged helper that a launchd job still uses is no longer
+  offered for removal.
+- Startup: removing a login item removes only that item, not every item with
+  the same name. A second "turn off" can no longer start while one is running.
+- Undo: undoing part of a cleanup no longer erases its History record while
+  some of its items are still in the Trash.
+- Privacy: clearing several browsers at once now clears all of them; before,
+  every browser after the first was silently skipped. A browser opened while
+  the confirmation is up is no longer quit without asking. The confirmation
+  names the data that is actually cleared, and an already empty Firefox
+  history is no longer offered.
+- Duplicates: a copy restored with Undo can be removed again, and sparse files
+  no longer overstate the space a cleanup frees.
+- Storage: the overview refreshes after a cleanup on another screen instead of
+  showing the old numbers until a manual rescan.
+- System Data: a snapshot deleted during a rescan no longer comes back in the
+  list, and a size that could only be partly measured is shown as "at least".
+- System Junk: a file hard-linked into two folders is counted once.
+- Large Files: an empty result after a timeout or an access error keeps its
+  warning instead of showing a clean disk.
+- Monitor: quitting a process can no longer hit a different process that
+  reused its PID. Sorting by memory shows the largest memory users even when
+  they use no CPU. Network speed no longer loses traffic on fast links. A
+  charged battery on mains is shown as mains power.
+- Alerts: one hot reading can no longer trigger the sustained-temperature
+  alert, and an alert macOS failed to deliver is no longer muted for its
+  cooldown.
+- Menu bar: the sparkline resets when its metric changes.
+- Settings opened on its own now shows the result of its actions.
+
+### Improved
+
+- Developer measures build folders in parallel within one time limit and keeps
+  the results it has when the limit is reached; a slow project no longer keeps
+  the screen scanning for minutes.
+- Smart Cleanup re-measures only the folder that failed instead of every
+  folder of its batch.
+- Large Files stops searching once it has enough results and skips excluded
+  folders without walking them, so it uses less memory on large disks.
+- Leftovers and Orphans no longer re-read every installed app for each file
+  they remove.
+- The monitor stops polling battery and GPU temperature sensors a Mac does not
+  have, and no longer leaks a system port reference on every sample.
+
 ## 0.9.1 — 2026-11-18
 
 ### Fixed
