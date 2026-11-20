@@ -423,7 +423,7 @@ public enum TrashService {
     static func restoreItems(_ items: [Trashed], recordingUndoOf record: UUID?, history: CleanupHistory) -> [Trashed] {
         let restored = restoredItems(items)
         let bytes = restored.reduce(UInt64(0)) { $0 &+ $1.movedBytes }
-        if !restored.isEmpty { history.undoTrashMoves(record, restoredBytes: bytes) }
+        if !restored.isEmpty { history.undoTrashMoves(record, restoredBytes: bytes, restoredCount: restored.count) }
         return restored
     }
 

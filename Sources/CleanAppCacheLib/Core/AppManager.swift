@@ -133,15 +133,18 @@ public actor AppManager {
     }
 
     public func findInstalledApps(progress: (@Sendable (Int, Int, String) -> Void)? = nil) async -> [InstalledApp] {
+        guard !Task.isCancelled else { return [] }
         let appURLs = discoverAppBundles()
+        guard !Task.isCancelled, !appURLs.isEmpty else { return [] }
         // List the ~/Library locations ONCE and match every app against the
         // in-memory index: O(dirs + apps × matches) instead of re-listing every
         // dir per app, which is O(apps × dirs).
         let index = buildLibraryIndex()
+        guard !Task.isCancelled else { return [] }
         // Needed so a `<bundleID>.`-prefix match cannot claim a sibling app's data.
         let installedIDs = installedBundleIDs()
+        guard !Task.isCancelled else { return [] }
         let total = appURLs.count
-        guard total > 0 else { return [] }
 
         // Size apps concurrently. Each app's sizing spawns du subprocesses (bundle
         // + associated files) that are I/O-bound, so a bounded sliding window is
@@ -155,12 +158,15 @@ public actor AppManager {
 
         await withTaskGroup(of: InstalledApp?.self) { group in
             var next = 0
-            while next < min(maxConcurrency, total) {
+            while next < min(maxConcurrency, total), !Task.isCancelled {
                 let url = appURLs[next]
-                group.addTask { Self.parse(url: url, index: index, installedIDs: installedIDs) }
+                guard group.addTaskUnlessCancelled(operation: {
+                    Self.parse(url: url, index: index, installedIDs: installedIDs)
+                }) else { break }
                 next += 1
             }
             while let result = await group.next() {
+                guard !Task.isCancelled else { group.cancelAll(); break }
                 done += 1
                 if let app = result {
                     apps.append(app)
@@ -170,11 +176,24 @@ public actor AppManager {
                 }
                 if next < total {
                     let url = appURLs[next]
-                    group.addTask { Self.parse(url: url, index: index, installedIDs: installedIDs) }
+                    guard group.addTaskUnlessCancelled(operation: {
+                        Self.parse(url: url, index: index, installedIDs: installedIDs)
+                    }) else { break }
                     next += 1
                 }
             }
         }
+        guard !Task.isCancelled else { return [] }
+        if apps.contains(where: { $0.bundleIdentifier == nil && !$0.associatedFiles.isEmpty }) {
+            let owners = Self.installedNameOwners()
+            for index in apps.indices where apps[index].bundleIdentifier == nil {
+                let app = apps[index]
+                if Self.otherNameOwner(named: app.name, outside: app.url, in: owners) {
+                    apps[index].associatedFiles = []
+                }
+            }
+        }
+        guard !Task.isCancelled else { return [] }
         return Self.separateSharedData(apps).sorted { $0.name < $1.name }
     }
 
@@ -256,7 +275,11 @@ public actor AppManager {
     }
 
     public func installedInventory() async -> InstalledInventory {
-        if let cached = cachedInventory,
+        await installedInventory(refreshing: false)
+    }
+
+    func installedInventory(refreshing: Bool) async -> InstalledInventory {
+        if !refreshing, let cached = cachedInventory,
            Date().timeIntervalSince(cached.at) < Self.bundleIDCacheTTL {
             return cached.inventory
         }
@@ -379,6 +402,41 @@ public actor AppManager {
         return bundles
     }
 
+    /// An app row must represent a package with its own executable, even
+    /// when its plist has no bundle identifier.
+    nonisolated static func uninstallableBundleInfo(at url: URL) -> NSDictionary? {
+        let contents = url.appendingPathComponent("Contents", isDirectory: true)
+        let info = contents.appendingPathComponent("Info.plist")
+        let macOS = contents.appendingPathComponent("MacOS", isDirectory: true)
+        guard url.pathExtension.lowercased() == "app",
+              (FileSnapshot(at: url)?.mode ?? 0) & S_IFMT == S_IFDIR,
+              (FileSnapshot(at: contents)?.mode ?? 0) & S_IFMT == S_IFDIR,
+              (FileSnapshot(at: macOS)?.mode ?? 0) & S_IFMT == S_IFDIR,
+              FileSnapshot(at: info)?.isRegularFile == true,
+              let plist = NSDictionary(contentsOf: info), plist["CFBundlePackageType"] as? String == "APPL",
+              let name = plist["CFBundleExecutable"] as? String, !name.isEmpty,
+              name != ".", name != "..", !name.contains("/"), !name.utf8.contains(0) else { return nil }
+        let executable = macOS.appendingPathComponent(name)
+        guard FileSnapshot(at: executable)?.isRegularFile == true,
+              FileManager.default.isExecutableFile(atPath: executable.path) else { return nil }
+        return plist
+    }
+
+    nonisolated static func installedNameOwners(
+        in roots: [URL] = appRoots(includingSystem: true)
+    ) -> [String: Set<String>] {
+        var owners: [String: Set<String>] = [:]
+        for url in appBundles(in: roots) {
+            let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+            let info = NSDictionary(contentsOf: url.appendingPathComponent("Contents/Info.plist"))
+                ?? NSDictionary(contentsOf: url.appendingPathComponent("Info.plist"))
+            let names = [url.deletingPathExtension().lastPathComponent,
+                         info?["CFBundleName"] as? String, info?["CFBundleDisplayName"] as? String]
+            for name in names.compactMap({ $0 }) { owners[name.lowercased(), default: []].insert(path) }
+        }
+        return owners
+    }
+
     /// Lists the `~/Library` locations where apps keep per-app data, once,
     /// into a flat index. Each entry there is named after one bundle id —
     /// the folder, the plist, or the group container.
@@ -401,10 +459,12 @@ public actor AppManager {
         ]
         var index: [LibraryEntry] = []
         for (folder, type) in searchPaths {
+            guard !Task.isCancelled else { return [] }
             guard let contents = try? fm.contentsOfDirectory(
                 at: library.appendingPathComponent(folder), includingPropertiesForKeys: nil) else { continue }
             let grouped = folder == "Group Containers" || folder == "Application Scripts"
             for item in contents {
+                guard !Task.isCancelled else { return [] }
                 let name = item.lastPathComponent
                 guard !Self.preservesSharedData(at: item, type: type) else { continue }
                 index.append(LibraryEntry(type: type,
@@ -422,18 +482,15 @@ public actor AppManager {
         index: [LibraryEntry],
         installedIDs: Set<String>
     ) -> InstalledApp? {
-        guard let identity = RemovalIdentity(at: url, bundle: true) else { return nil }
-        let infoPlist = url.appendingPathComponent("Contents/Info.plist")
-
-        var bundleID: String?
-        var version: String?
-        if let plist = NSDictionary(contentsOf: infoPlist) {
-            bundleID = plist["CFBundleIdentifier"] as? String
-            version = plist["CFBundleShortVersionString"] as? String
-        }
+        guard !Task.isCancelled, let identity = RemovalIdentity(at: url, bundle: true),
+              let plist = uninstallableBundleInfo(at: url) else { return nil }
+        let bundleID = (plist["CFBundleIdentifier"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let version = plist["CFBundleShortVersionString"] as? String
 
         let name = url.deletingPathExtension().lastPathComponent
+        guard !Task.isCancelled else { return nil }
         let size = Scanner.shared.calculateSize(at: url)
+        guard !Task.isCancelled else { return nil }
         let associatedFiles = matchAssociatedFiles(
             appName: name, bundleID: bundleID, bundle: url, index: index, installedIDs: installedIDs
         )
@@ -456,6 +513,11 @@ public actor AppManager {
         )
         app.removalIdentity = identity
         return app
+    }
+
+    nonisolated static func otherNameOwner(named name: String, outside bundle: URL, in owners: [String: Set<String>]) -> Bool {
+        let path = bundle.standardizedFileURL.resolvingSymlinksInPath().path
+        return owners[name.lowercased()]?.contains { $0 != path } == true
     }
 
     /// When `url`'s bundle was last launched, or nil if nothing on this machine
@@ -604,6 +666,7 @@ public actor AppManager {
 
         // Size every match in one batched `du` instead of a subprocess each —
         // per-file subprocesses would dominate the cost of an uninstaller scan.
+        guard !Task.isCancelled else { return [] }
         let sizes = Scanner.shared.calculateSizes(at: matched.map(\.url))
         for entry in matched {
             guard entry.identity?.matches(entry.url) == true else { continue }
@@ -701,6 +764,18 @@ public actor AppManager {
     /// - An app that shares its bundle id with another installed copy keeps
     ///   its associated files: they belong to both.
     public func uninstall(_ apps: [InstalledApp], adminPrompt: String) async -> [UninstallResult] {
+        await uninstall(apps, adminPrompt: adminPrompt) { url in
+            let paths = Set(NSWorkspace.shared.runningApplications.compactMap {
+                $0.isTerminated ? nil : $0.bundleURL?.standardizedFileURL.path
+            })
+            if Self.hasRunningComponent(in: url, paths: paths) { return true }
+            return DeletionService.isBundleRunning(url)
+        }
+    }
+
+    func uninstall(_ apps: [InstalledApp], adminPrompt: String,
+                   applicationRoots: [URL] = appRoots(includingSystem: true),
+                   bundleIsRunning: @Sendable (URL) -> Bool?) async -> [UninstallResult] {
         var results = apps.map(UninstallResult.init(app:))
         invalidateBundleIDCache()
         let checks = await check(apps)
@@ -708,7 +783,8 @@ public actor AppManager {
 
         // 1. Quit what is running. A bundle removed under a running app is
         //    rewritten by that app on quit: its settings and caches come back.
-        for (index, app) in apps.enumerated() where app.removalIdentity?.matches(app.url) != true {
+        for (index, app) in apps.enumerated() where app.removalIdentity?.matches(app.url) != true
+            || Self.uninstallableBundleInfo(at: app.url) == nil {
             results[index].bundleChanged = true
             results[index].bundleObstacle = .changedSinceScan
         }
@@ -722,14 +798,16 @@ public actor AppManager {
             }
         }
 
-        func associated(_ index: Int) -> [URL] {
-            guard checks[index].sharedWith == nil else { return [] }
+        func associated(_ index: Int, keepNameMatchedData: Bool) -> [URL] {
+            guard checks[index].sharedWith == nil, !keepNameMatchedData else { return [] }
             // Presence is tested with lstat: a dangling symlink still has to go.
             let app = apps[index]
             return app.associatedFiles.filter { file in
                 guard !Self.preservesSharedData(at: file.url, type: file.type) else { return false }
                 guard Self.scriptOwnerMatches(file.url, bundleID: app.bundleIdentifier) else { return false }
-                guard let bid = app.bundleIdentifier?.lowercased() else { return true }
+                guard let bid = app.bundleIdentifier?.lowercased(), !bid.isEmpty else {
+                    return file.url.lastPathComponent.lowercased() == app.url.deletingPathExtension().lastPathComponent.lowercased()
+                }
                 let name = Self.groupMatchName(file.url.lastPathComponent)
                 return !Self.ownedByAnotherApp(name, bundleID: bid, bundle: app.url, installed: currentIDs)
             }.map(\.url).filter { !RemovalCheck.isMissing($0) }
@@ -738,15 +816,20 @@ public actor AppManager {
         // 2. Bundles this account can remove, then their data.
         var adminGroups: [[URL]] = []
         var adminOwner: [Int] = []          // app index for each admin group
+        var adminBundles: Set<URL> = []
         var identities: [URL: RemovalIdentity] = [:]
         for app in apps {
             identities[app.url] = app.removalIdentity
             for file in app.associatedFiles { identities[file.url] = file.removalIdentity }
         }
         for (index, app) in apps.enumerated() where !results[index].stillRunning && !results[index].bundleChanged {
+            let name = app.url.deletingPathExtension().lastPathComponent
+            let keepNameMatchedData = (app.bundleIdentifier ?? "").isEmpty && !app.associatedFiles.isEmpty
+                && Self.otherNameOwner(named: name, outside: app.url, in: Self.installedNameOwners(in: applicationRoots))
             results[index].sharedDataKept = (checks[index].sharedWith != nil && !app.associatedFiles.isEmpty)
+                || keepNameMatchedData
                 || app.associatedFiles.contains { Self.preservesSharedData(at: $0.url, type: $0.type) }
-            guard app.removalIdentity?.matches(app.url) == true else {
+            guard app.removalIdentity?.matches(app.url) == true, Self.uninstallableBundleInfo(at: app.url) != nil else {
                 results[index].bundleChanged = true
                 results[index].bundleObstacle = .changedSinceScan
                 continue
@@ -757,24 +840,34 @@ public actor AppManager {
                 continue
             }
             if RemovalCheck.deleteObstacle(at: app.url) == .needsAdmin {
-                adminGroups.append([app.url] + associated(index))
+                adminGroups.append([app.url] + associated(index, keepNameMatchedData: keepNameMatchedData))
                 adminOwner.append(index)
+                adminBundles.insert(app.url)
                 continue
             }
+            var activity: Bool? = false
             let bundle = DeletionService.delete([app.url], knownSizes: [app.url: app.size],
                                                 validationObstacle: .changedSinceScan) {
-                app.removalIdentity?.matches($0) == true
+                guard app.removalIdentity?.matches($0) == true else { return false }
+                activity = bundleIsRunning($0)
+                return activity == false && Self.uninstallableBundleInfo(at: $0) != nil
+                    && app.removalIdentity?.matches($0) == true
             }
             if bundle.deleted.isEmpty && bundle.alreadyGone.isEmpty {
-                if app.removalIdentity?.matches(app.url) != true {
+                if activity == true {
+                    results[index].stillRunning = true
+                    continue
+                }
+                if app.removalIdentity?.matches(app.url) != true || Self.uninstallableBundleInfo(at: app.url) == nil {
                     results[index].bundleChanged = true
                     results[index].bundleObstacle = .changedSinceScan
                     continue
                 }
-                let obstacle = bundle.obstacles[app.url]
+                let obstacle = activity == nil ? .other : bundle.obstacles[app.url]
                 if obstacle == .needsAdmin {
-                    adminGroups.append([app.url] + associated(index))
+                    adminGroups.append([app.url] + associated(index, keepNameMatchedData: keepNameMatchedData))
                     adminOwner.append(index)
+                    adminBundles.insert(app.url)
                 } else {
                     results[index].bundleObstacle = obstacle
                     results[index].bundleBlocked = !bundle.blocked.isEmpty
@@ -791,7 +884,7 @@ public actor AppManager {
             results[index].bundleRemoved = true
             results[index].freedBytes += bundle.freedBytes
 
-            let data = associated(index)
+            let data = associated(index, keepNameMatchedData: keepNameMatchedData)
             let removed = DeletionService.delete(data, knownSizes: Dictionary(
                 apps[index].associatedFiles.map { ($0.url, $0.size) }, uniquingKeysWith: { a, _ in a }),
                 validationObstacle: .changedSinceScan) { identities[$0]?.matches($0) == true }
@@ -813,11 +906,13 @@ public actor AppManager {
         if !adminGroups.isEmpty {
             let groups = adminGroups
             let scanIdentities = identities
+            let bundles = adminBundles
             let measured = Dictionary(groups.flatMap { $0 }.map {
                 ($0, (try? FileManager.default.allocatedSize(of: URL(fileURLWithPath: $0.path), reclaiming: true)) ?? 0)
             }, uniquingKeysWith: { a, _ in a })
             let admin = await Task.detached(priority: .userInitiated) {
-                DeletionService.deleteAsAdministrator(groups, prompt: adminPrompt, identities: scanIdentities)
+                DeletionService.deleteAsAdministrator(groups, prompt: adminPrompt, identities: scanIdentities,
+                                                      appBundles: bundles)
             }.value
             let removed = Set(admin.removed)
             for (group, index) in zip(adminGroups, adminOwner) {
@@ -829,6 +924,7 @@ public actor AppManager {
                         results[index].bundleRemoved = true
                         results[index].freedBytes += measured[head] ?? 0
                     } else {
+                        results[index].stillRunning = admin.running.contains(head)
                         results[index].bundleChanged = admin.changed.contains(head)
                         results[index].bundleObstacle = admin.obstacles[head] ?? .needsAdmin
                         results[index].bundleBlocked = admin.refused.contains(head)

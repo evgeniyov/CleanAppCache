@@ -65,8 +65,7 @@ final class PrivilegedDeletionTests: XCTestCase {
     func testAdministratorBundleTargetRefusesALinkToAnotherApp() throws {
         let dir = try scratch("bundle_link")
         let real = dir.appendingPathComponent("Real.app")
-        try FileManager.default.createDirectory(at: real.appendingPathComponent("Contents"),
-                                                withIntermediateDirectories: true)
+        try writeTestApplication(real)
         let link = dir.appendingPathComponent("Other.app")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
 

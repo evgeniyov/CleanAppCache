@@ -69,8 +69,8 @@ public struct CleanupRecord: Identifiable, Codable, Sendable {
     }
 
     /// The same record with its Trash moves taken back — what an Undo leaves.
-    func restoringTrashBytes(_ bytes: UInt64) -> CleanupRecord {
-        CleanupRecord(id: id, date: date, source: source, itemCount: itemCount,
+    func restoringTrashMoves(bytes: UInt64, count: Int) -> CleanupRecord {
+        CleanupRecord(id: id, date: date, source: source, itemCount: max(0, itemCount - max(0, count)),
                       freedBytes: freedBytes, trashedBytes: trashedBytes - min(bytes, trashedBytes), report: report)
     }
 
@@ -165,12 +165,15 @@ public final class CleanupHistory: ObservableObject {
         return record.id
     }
 
-    /// Takes back only the bytes actually restored. A mixed operation retains
+    /// Takes back only the items actually restored. A mixed operation retains
     /// its permanent deletions and any Trash moves Undo could not restore.
-    public func undoTrashMoves(_ id: UUID?, restoredBytes: UInt64? = nil) {
+    public func undoTrashMoves(_ id: UUID?, restoredBytes: UInt64? = nil, restoredCount: Int? = nil) {
         guard let id, let index = records.firstIndex(where: { $0.id == id }) else { return }
-        let updated = records[index].restoringTrashBytes(restoredBytes ?? records[index].trashedBytes)
-        if updated.freedBytes == 0, updated.trashedBytes == 0 {
+        let record = records[index]
+        let bytes = restoredBytes ?? record.trashedBytes
+        let count = restoredCount ?? (record.freedBytes == 0 && bytes >= record.trashedBytes ? record.itemCount : 0)
+        let updated = record.restoringTrashMoves(bytes: bytes, count: count)
+        if updated.itemCount == 0, updated.freedBytes == 0, updated.trashedBytes == 0 {
             records.remove(at: index)
         } else {
             records[index] = updated

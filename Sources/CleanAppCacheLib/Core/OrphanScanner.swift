@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import Darwin
 
 // MARK: - Orphaned background items
 //
@@ -115,10 +116,7 @@ public actor OrphanScanner {
         let label = (plist["Label"] as? String) ?? url.deletingPathExtension().lastPathComponent
         guard !label.lowercased().hasPrefix("com.apple.") else { return nil }
 
-        var program = (plist["Program"] as? String) ?? ""
-        if program.isEmpty,
-           let args = plist["ProgramArguments"] as? [String],
-           let first = args.first { program = first }
+        let program = jobProgram(plist) ?? ""
         guard program.hasPrefix("/") else { return nil }
 
         let reason: OrphanItem.Reason
@@ -147,16 +145,13 @@ public actor OrphanScanner {
 
     /// Inventory is valid only while the installation state remains unchanged.
     func removalValidator(for items: [OrphanItem]) async -> @Sendable (URL) -> Bool {
-        let baseline = Self.installationState()
-        await AppManager.shared.invalidateBundleIDCache()
-        let inventory = await AppManager.shared.installedInventory()
-        return Self.removalValidator(for: items, inventory: inventory, baseline: baseline)
+        let (inventory, installationIsCurrent) = await Self.removalInventory()
+        return Self.removalValidator(for: items, inventory: inventory, installationIsCurrent: installationIsCurrent)
     }
 
     nonisolated static func removalValidator(
         for items: [OrphanItem], inventory: AppManager.InstalledInventory,
-        baseline: InstallationState?,
-        readInstallationState: @escaping @Sendable () -> InstallationState? = { installationState() },
+        installationIsCurrent: @escaping @Sendable () -> Bool,
         applicationExists: @escaping @Sendable (String) -> Bool = {
             NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
         },
@@ -164,8 +159,7 @@ public actor OrphanScanner {
     ) -> @Sendable (URL) -> Bool {
         let selected = Dictionary(items.map { ($0.url, $0) }, uniquingKeysWith: { first, _ in first })
         return { url in
-            guard let item = selected[url], let baseline,
-                  readInstallationState() == baseline else { return false }
+            guard let item = selected[url], installationIsCurrent() else { return false }
             return isStillOrphan(item, inventory: inventory, applicationExists: applicationExists,
                                  jobDirectories: jobDirectories)
         }
@@ -176,16 +170,113 @@ public actor OrphanScanner {
         var runningBundleIDs: Set<String> = []
     }
 
+    nonisolated static func removalInventory() async -> (AppManager.InstalledInventory, @Sendable () -> Bool) {
+        let baseline = installationState()
+        let generation = baseline.flatMap(InstallationGeneration.init(state:))
+        let inventory = await AppManager.shared.installedInventory(refreshing: true)
+        guard let baseline, installationState() == baseline else { return (inventory, { false }) }
+        if let generation {
+            let running = baseline.runningBundleIDs
+            return (inventory, {
+                generation.isCurrent() && runningBundleIDs() == running
+            })
+        }
+        // A descriptor limit or an unwatchable path cannot authorize using a
+        // stale inventory. Fall back to the full check in both Trash routes.
+        return (inventory, { installationState() == baseline })
+    }
+
+    nonisolated private static func runningBundleIDs() -> Set<String> {
+        Set(NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier })
+    }
+
+    /// Vnode changes are queued by the filesystem synchronously. A validator
+    /// polls the shared queue at each removal boundary, including Finder.
+    final class InstallationGeneration: @unchecked Sendable {
+        private let queue: Int32
+        private let descriptors: [Int32]
+        private let lock = NSLock()
+        private var invalidated = false
+
+        init?(state: InstallationState) {
+            let queue = kqueue()
+            guard queue >= 0 else { return nil }
+            _ = fcntl(queue, F_SETFD, FD_CLOEXEC)
+            var descriptors: [Int32] = []
+            var complete = false
+            defer {
+                if !complete {
+                    for descriptor in descriptors { close(descriptor) }
+                    close(queue)
+                }
+            }
+            let allChanges = UInt32(NOTE_WRITE | NOTE_EXTEND | NOTE_ATTRIB | NOTE_LINK | NOTE_RENAME | NOTE_DELETE | NOTE_REVOKE)
+            let identityChanges = UInt32(NOTE_RENAME | NOTE_DELETE | NOTE_REVOKE)
+            var watched = Dictionary(uniqueKeysWithValues: state.files.keys.map { ($0, allChanges) })
+            for path in Array(watched.keys) {
+                var ancestor = path
+                while ancestor != "/" {
+                    let parent = (ancestor as NSString).deletingLastPathComponent
+                    guard !parent.isEmpty, parent != ancestor else { return nil }
+                    if watched[parent] == nil { watched[parent] = identityChanges }
+                    ancestor = parent
+                }
+            }
+            var opened: [(String, FileSnapshot)] = []
+            for (path, flags) in watched {
+                let descriptor = open(path, O_EVTONLY | O_CLOEXEC | O_SYMLINK)
+                guard descriptor >= 0 else { return nil }
+                descriptors.append(descriptor)
+                var status = stat()
+                guard fstat(descriptor, &status) == 0 else { return nil }
+                opened.append((path, FileSnapshot(status)))
+                var change = kevent(ident: UInt(descriptor), filter: Int16(EVFILT_VNODE), flags: UInt16(EV_ADD),
+                                    fflags: flags, data: 0, udata: nil)
+                guard kevent(queue, &change, 1, nil, 0, nil) == 0 else { return nil }
+            }
+            guard opened.allSatisfy({ $0.1.isSameObject(at: URL(fileURLWithPath: $0.0)) }) else { return nil }
+            self.queue = queue
+            self.descriptors = descriptors
+            complete = true
+        }
+
+        func isCurrent() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            if !invalidated {
+                var event = kevent()
+                var timeout = timespec()
+                invalidated = kevent(queue, nil, 0, &event, 1, &timeout) != 0
+            }
+            return !invalidated
+        }
+
+        deinit {
+            for descriptor in descriptors { close(descriptor) }
+            close(queue)
+        }
+    }
+
     /// Only installation metadata is read; app contents are never sized or hashed.
     /// A changed directory invalidates the entire batch, including helpers with vendor-wide names.
     nonisolated static func installationState(
-        roots: [URL] = defaultApplicationRoots,
-        runningBundleIDs: Set<String> = Set(NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier })
+        roots: [URL] = AppManager.appRoots(includingSystem: true),
+        runningBundleIDs: Set<String> = OrphanScanner.runningBundleIDs()
     ) -> InstallationState? {
         let fm = FileManager.default
         var state = InstallationState(runningBundleIDs: runningBundleIDs)
         func record(_ url: URL) -> Bool {
-            guard let snapshot = FileSnapshot(at: url) else { return RemovalCheck.isMissing(url) }
+            guard let snapshot = FileSnapshot(at: url) else {
+                guard RemovalCheck.isMissing(url) else { return false }
+                var parent = url.deletingLastPathComponent()
+                while FileSnapshot(at: parent) == nil {
+                    let next = parent.deletingLastPathComponent()
+                    guard next != parent, !next.path.isEmpty, RemovalCheck.isMissing(parent) else { return false }
+                    parent = next
+                }
+                // Watch the closest existing directory for the first new component.
+                return record(parent)
+            }
             state.files[url.path] = snapshot
             let physical = url.resolvingSymlinksInPath()
             if physical != url {
@@ -222,12 +313,6 @@ public actor OrphanScanner {
         }
         return state
     }
-
-    private static let defaultApplicationRoots = [
-        URL(fileURLWithPath: "/Applications"), URL(fileURLWithPath: "/Applications/Utilities"),
-        URL(fileURLWithPath: "/System/Applications"), URL(fileURLWithPath: "/System/Applications/Utilities"),
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
-    ]
 
     /// The same predicate is usable at the Trash boundary and in scratch-only tests.
     nonisolated static func isStillOrphan(
@@ -273,8 +358,7 @@ public actor OrphanScanner {
         let physical = url.standardizedFileURL.resolvingSymlinksInPath()
         let parent = FileSnapshot(at: physical.deletingLastPathComponent())
         guard !isOwned(name, inventory: inventory, applicationExists: applicationExists),
-              !jobs(referencing: url, associatedWithAnyOf: inventory.bundleIDs,
-                    directories: jobDirectories, applicationExists: applicationExists),
+              !hasJobReferencing(identity, directories: jobDirectories),
               identity.matches(url) else { return nil }
         var item = OrphanItem(label: url.lastPathComponent, programPath: url.path,
                               url: url, scope: .helper, reason: .appMissing, size: allocatedSize(url))
@@ -311,27 +395,33 @@ public actor OrphanScanner {
     }
 
     private static let defaultJobDirectories = [
-        URL(fileURLWithPath: "/Library/LaunchDaemons"), URL(fileURLWithPath: "/Library/LaunchAgents")
+        URL(fileURLWithPath: "/Library/LaunchDaemons"), URL(fileURLWithPath: "/Library/LaunchAgents"),
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents")
     ]
 
-    /// True when a launchd job in `/Library` runs `helper` and names, in
-    /// `AssociatedBundleIdentifiers`, an app that is installed — the way
-    /// macOS itself attributes a background item to its app.
-    nonisolated private static func jobs(referencing helper: URL, associatedWithAnyOf installed: Set<String>,
-                             directories: [URL], applicationExists: (String) -> Bool) -> Bool {
+    nonisolated private static func jobProgram(_ plist: [String: Any]) -> String? {
+        if let program = plist["Program"] as? String, !program.isEmpty { return program }
+        return (plist["ProgramArguments"] as? [String])?.first
+    }
+
+    /// A configured job may use the helper at its next launch even when its
+    /// label differs and it declares no associated app.
+    nonisolated private static func hasJobReferencing(_ helper: FileSnapshot, directories: [URL]) -> Bool {
         let fm = FileManager.default
         for directory in directories {
-            let dir = directory.path
-            guard let plists = try? fm.contentsOfDirectory(atPath: dir) else { continue }
-            for name in plists where name.hasSuffix(".plist") {
-                guard let dict = NSDictionary(contentsOfFile: dir + "/" + name) as? [String: Any] else { continue }
-                let program = (dict["Program"] as? String)
-                    ?? (dict["ProgramArguments"] as? [String])?.first
-                guard program == helper.path else { continue }
-                let associated: [String]
-                if let one = dict["AssociatedBundleIdentifiers"] as? String { associated = [one] }
-                else { associated = dict["AssociatedBundleIdentifiers"] as? [String] ?? [] }
-                if associated.contains(where: { installed.contains($0.lowercased()) || applicationExists($0) }) { return true }
+            guard let plists = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
+                if RemovalCheck.isMissing(directory) { continue }
+                return true
+            }
+            for plist in plists where plist.pathExtension == "plist" {
+                guard let data = try? Data(contentsOf: plist) else {
+                    if RemovalCheck.isMissing(plist) { continue }
+                    return true
+                }
+                guard let dict = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+                      let program = jobProgram(dict), program.hasPrefix("/") else { continue }
+                let executable = URL(fileURLWithPath: program).standardizedFileURL.resolvingSymlinksInPath()
+                if helper.isSameObject(at: executable) { return true }
             }
         }
         return false

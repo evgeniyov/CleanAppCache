@@ -55,6 +55,7 @@ public struct StartupView: View {
                 isPresented: $showConfirm, titleVisibility: .visible
             ) {
                 Button(loc.s("startup.action")) { apply() }
+                    .disabled(viewModel.isScanning || viewModel.isTurningOff)
                 Button(loc.s("common.cancel"), role: .cancel) {}
             } message: {
                 Text(confirmMessage)
@@ -83,8 +84,12 @@ public struct StartupView: View {
                 selection: $selection,
                 sizeFilter: $sizeFilter,
                 onScan: { viewModel.scan() },
-                onApply: { showConfirm = true }
+                onApply: {
+                    guard !viewModel.isScanning, !viewModel.isTurningOff else { return }
+                    showConfirm = true
+                }
             )
+            .disabled(viewModel.isTurningOff)
         }
     }
 

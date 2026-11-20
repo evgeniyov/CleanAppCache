@@ -117,18 +117,13 @@ public actor LeftoversManager {
 
     /// A stale result cannot authorize removing a replacement or a reinstalled app's data.
     func removalValidator(for groups: [LeftoverGroup]) async -> @Sendable (URL) -> Bool {
-        let baseline = OrphanScanner.installationState()
-        await appManager.invalidateBundleIDCache()
-        let inventory = await appManager.installedInventory()
-        return Self.removalValidator(for: groups, inventory: inventory, baseline: baseline)
+        let (inventory, installationIsCurrent) = await OrphanScanner.removalInventory()
+        return Self.removalValidator(for: groups, inventory: inventory, installationIsCurrent: installationIsCurrent)
     }
 
     nonisolated static func removalValidator(
         for groups: [LeftoverGroup], inventory: AppManager.InstalledInventory,
-        baseline: OrphanScanner.InstallationState?,
-        readInstallationState: @escaping @Sendable () -> OrphanScanner.InstallationState? = {
-            OrphanScanner.installationState()
-        },
+        installationIsCurrent: @escaping @Sendable () -> Bool,
         applicationExists: @escaping @Sendable (String) -> Bool = {
             NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
         }
@@ -137,8 +132,7 @@ public actor LeftoversManager {
             group.files.map { ($0.url, (file: $0, key: group.id, uncertain: group.uncertain)) }
         }, uniquingKeysWith: { first, _ in first })
         return { url in
-            guard let candidate = selected[url], let baseline,
-                  readInstallationState() == baseline,
+            guard let candidate = selected[url], installationIsCurrent(),
                   let identity = candidate.file.removalIdentity,
                   identity.matches(url), identity.object.matches(url) else { return false }
             let verdict = Self.classify(candidate.key, inventory: inventory, applicationExists: applicationExists)

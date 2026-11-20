@@ -265,11 +265,12 @@ public enum DeletionService {
         public let outcome: EscalationOutcome
         /// The selected object, parent or verified tree no longer matches preflight.
         public let changed: [URL]
+        public let running: [URL]
     }
 
     /// Deletes `groups` as root after one administrator password, shown with
-    /// `prompt` as its explanation. Each group is removed in order and stops
-    /// at its first failure, so an app's data goes only after its bundle has.
+    /// `prompt` as its explanation. The first entry gates the rest of its
+    /// group, so an app's data goes only after its bundle has.
     ///
     /// Every URL must pass `administratorTarget(for:)`; a group whose first
     /// URL does not is dropped whole. Blocks until the dialog is answered and
@@ -282,7 +283,9 @@ public enum DeletionService {
     /// Tests inject a scratch-only target resolver and an unprivileged shell runner.
     static func deleteAsAdministrator(
         _ groups: [[URL]], prompt: String, identities: [URL: RemovalIdentity]?,
+        appBundles: Set<URL> = [],
         targetResolver: (URL) -> URL? = administratorTarget(for:),
+        activityCheck: (URL) -> String = bundleActivityCheck,
         runner: (String, String) -> AppleScriptRunner.Output = { AppleScriptRunner.runPrivileged($0, prompt: $1) }
     ) -> AdministratorResult {
         // Pairs of (what the caller named, what the shell will be given): the
@@ -309,7 +312,8 @@ public enum DeletionService {
         }
         let all = accepted.flatMap { $0 }
         guard !all.isEmpty else {
-            return AdministratorResult(removed: [], failed: [], refused: refused, obstacles: [:], outcome: .failed, changed: [])
+            return AdministratorResult(removed: [], failed: [], refused: refused, obstacles: [:],
+                                       outcome: .failed, changed: [], running: [])
         }
 
         // The head of a group gates the rest; the rest are independent, so
@@ -319,12 +323,10 @@ public enum DeletionService {
         // another process, including while authentication is cancelled, is not success.
         let receiptPrefix = "CAC_" + UUID().uuidString + "_"
         var receipts: [URL: String] = [:]
-        var changeReceipts: [URL: String] = [:]
         var expected: [URL: RemovalIdentity] = [:]
         var fingerprints: [URL: String] = [:]
         for (index, pair) in all.enumerated() {
             receipts[pair.original] = receiptPrefix + String(index)
-            changeReceipts[pair.original] = receiptPrefix + String(index) + "_CHANGED"
             expected[pair.original] = identities == nil ? RemovalIdentity(at: pair.target) : identities?[pair.original]
             // Freeze before the final policy check. A new protected descendant
             // arriving during that check then invalidates the frozen tree.
@@ -339,15 +341,19 @@ public enum DeletionService {
                   let fingerprint = fingerprints[pair.original] else {
                 return "/usr/bin/false"
             }
+            let physical = identity.parent.appendingPathComponent(pair.target.lastPathComponent)
             return pinnedRemoval(pair.target, identity: identity, fingerprint: fingerprint,
-                                 changedReceipt: changeReceipts[pair.original])
-                + " && /usr/bin/printf '%s\\n' " + AppleScriptRunner.shellQuoted(receipt)
+                                 receipt: receipt,
+                                 activityCheck: appBundles.contains(pair.original) ? activityCheck(physical) : nil)
+                + " && " + shellReceipt(receipt)
         }
+        // AppleScript returns receipts on stdout only when the shell exits
+        // successfully. A failed entry still stops its dependent entries.
         let command = accepted.map { group in
             let head = removal(group[0])
             let rest = group.dropFirst().map { removal($0) }
             return rest.isEmpty ? head : "\(head) && { \(rest.joined(separator: "; ")); true; }"
-        }.joined(separator: "; ")
+        }.joined(separator: "; ") + "; exit 0"
         let output = accepted.contains { fingerprints[$0[0].original] != nil }
             ? runner(command, prompt)
             : AppleScriptRunner.Output(status: 1, stdout: "", stderr: "", timedOut: false)
@@ -364,33 +370,79 @@ public enum DeletionService {
         var failed: [URL] = []
         var obstacles: [URL: RemovalObstacle] = [:]
         var changed: [URL] = []
+        var running: [URL] = []
         // AppleScript uses CR between output lines; plain subprocesses use LF.
         // Receipts contain no whitespace, so either line ending is a delimiter.
         let completed = Set(output.stdout.split(whereSeparator: { $0.isNewline }).map(String.init))
-        let notPermitted = output.stderr.localizedCaseInsensitiveContains("Operation not permitted")
         for (url, target) in all {
-            if let receipt = receipts[url], completed.contains(receipt), RemovalCheck.isMissing(target) {
+            guard let receipt = receipts[url] else { continue }
+            if completed.contains(receipt), RemovalCheck.isMissing(target) {
                 removed.append(url)
                 continue
             }
             failed.append(url)
             let noFingerprint = fingerprints[url] == nil
-            let shellSawChange = changeReceipts[url].map({ completed.contains($0) }) == true
+            let shellSawChange = completed.contains(receipt + "_CHANGED")
             let identityMoved = expected[url]?.matches(target) != true
             if noFingerprint || shellSawChange || identityMoved {
                 Log.error("Administrator delete saw a change at \(url.path): "
                     + "noFingerprint=\(noFingerprint) shellSawChange=\(shellSawChange) identityMoved=\(identityMoved)")
                 changed.append(url)
                 obstacles[url] = .changedSinceScan
+            } else if completed.contains(receipt + "_RUNNING") {
+                running.append(url)
+                obstacles[url] = .inUse
             } else if let flagged = RemovalCheck.flagObstacle(at: target) { obstacles[url] = flagged }
             else if outcome == .cancelled { obstacles[url] = .needsAdmin }
             // Root was refused: privacy protection (App Management for a
             // bundle), the one wall a password does not get through.
-            else if notPermitted { obstacles[url] = .privacyProtected }
+            else if completed.contains(receipt + "_PRIVACY") { obstacles[url] = .privacyProtected }
             else { obstacles[url] = .other }
         }
         return AdministratorResult(removed: removed, failed: failed, refused: refused,
-                                   obstacles: obstacles, outcome: outcome, changed: changed)
+                                   obstacles: obstacles, outcome: outcome, changed: changed, running: running)
+    }
+
+    private static func shellReceipt(_ value: String) -> String {
+        "/usr/bin/printf '%s\\n' " + AppleScriptRunner.shellQuoted(value)
+    }
+
+    /// lsof reads kernel text mappings, including command-line helpers that
+    /// have no NSRunningApplication. Keep paths NUL-delimited through the check.
+    private static func bundleActivityCheck(_ bundle: URL) -> String {
+        // lsof escapes control characters even in field output. Keep the
+        // bundle if its path cannot be compared with the chosen encoding.
+        guard !bundle.path.utf8.contains(where: { $0 < 32 || $0 == 127 }) else { return "/usr/bin/false" }
+        let path = AppleScriptRunner.shellQuoted(bundle.path)
+        return #"""
+        (set -o pipefail; export LC_ALL=C;
+        /usr/sbin/lsof -nP -S 2 -d txt -F0n 2>/dev/null | CAC_BUNDLE_PATH=\#(path) /usr/bin/perl -0ne '
+        BEGIN {
+            $prefix = "n" . $ENV{CAC_BUNDLE_PATH} . "/";
+            $prefix =~ s/\\/\\\\/g;
+            $prefix =~ s/([\x80-\xff])/sprintf("\\x%02x", ord($1))/ge;
+        }
+        $running = 1 if index($_, $prefix) == 0;
+        END { exit($running ? 42 : 0) }')
+        """#
+    }
+
+    static func isBundleRunning(_ bundle: URL) -> Bool? {
+        guard let identity = RemovalIdentity(at: bundle) else { return nil }
+        let physical = identity.parent.appendingPathComponent(bundle.lastPathComponent)
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", bundleActivityCheck(physical)]
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
+        do { try task.run() } catch { return nil }
+        task.waitUntilExit()
+        guard task.terminationReason == .exit else { return nil }
+        switch task.terminationStatus {
+        case 0: return false
+        case 42: return true
+        default: return nil
+        }
     }
 
     /// One item as a root shell command that cannot be redirected: the shell
@@ -412,7 +464,7 @@ public enum DeletionService {
     }
 
     private static func pinnedRemoval(_ target: URL, identity: RemovalIdentity, fingerprint: String,
-                                      changedReceipt: String? = nil) -> String {
+                                      receipt: String? = nil, activityCheck: String? = nil) -> String {
         let quote = AppleScriptRunner.shellQuoted
         // Refuse redirection before command construction as well as after authentication.
         guard identity.matches(target) else { return "/usr/bin/false" }
@@ -432,10 +484,22 @@ public enum DeletionService {
                 finalChecks += " && [ ! -e \(info) ] && [ ! -L \(info) ]"
             }
         }
-        let changed = changedReceipt.map { "/usr/bin/printf '%s\\n' " + quote($0) + "; " } ?? ""
+        let changed = receipt.map { shellReceipt($0 + "_CHANGED") + "; " } ?? ""
+        var remove = "/bin/rm -rfx -- \(name)"
+        if let receipt {
+            let privacy = shellReceipt(receipt + "_PRIVACY")
+            remove = "if cac_error=$(\(remove) 2>&1); then true; else "
+                + "case \"$cac_error\" in *'Operation not permitted'*) \(privacy);; esac; /usr/bin/false; fi"
+            if let activityCheck {
+                let running = shellReceipt(receipt + "_RUNNING")
+                remove = "\(activityCheck); case $? in 0) if \(finalChecks); then \(remove); "
+                    + "else \(changed)/usr/bin/false; fi;; 42) \(running); /usr/bin/false;; "
+                    + "*) /usr/bin/false;; esac"
+            }
+        }
         let fingerprintCheck = "if cac_tree_fingerprint=$(\(treeFingerprintPipeline(target, parent: identity.parent))); then "
             + "if [ \"$cac_tree_fingerprint\" = \(quote(fingerprint)) ] && \(finalChecks); then "
-            + "/bin/rm -rfx -- \(name); else \(changed)/usr/bin/false; fi; "
+            + "\(remove); else \(changed)/usr/bin/false; fi; "
             + "else \(changed)/usr/bin/false; fi"
         return "( set -o pipefail; export LC_ALL=C; cd -P -- \(quote(parent)) && "
             + locationChecks + " && " + fingerprintCheck + " )"
@@ -581,10 +645,7 @@ public enum DeletionService {
             return !base.isEmpty && path.hasPrefix(base + "/")
         }) else { return nil }
 
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue,
-              FileManager.default.fileExists(atPath: resolved.appendingPathComponent("Contents").path)
-        else { return nil }
+        guard AppManager.uninstallableBundleInfo(at: resolved) != nil else { return nil }
         return resolved
     }
 
