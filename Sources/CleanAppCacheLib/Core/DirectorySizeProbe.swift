@@ -3,20 +3,61 @@ import Foundation
 /// One directory per process: a slow sibling never holds completed results in
 /// a batch. The owner cancels only its own process, including a launch race.
 enum DirectorySizeProbe {
+    struct Measurement: Sendable {
+        let bytes: UInt64?
+        let complete: Bool
+    }
+
     static func measure(_ urls: [URL], timeout: TimeInterval) async -> [String: UInt64] {
         var sizes: [String: UInt64] = [:]
         for url in urls {
             guard !Task.isCancelled else { break }
-            guard let data = await capture(executable: URL(fileURLWithPath: "/usr/bin/du"),
-                                          arguments: ["-skx", url.path], timeout: timeout) else { continue }
-            let text = String(decoding: data, as: UTF8.self)
-            // One literal path, so newlines in its name cannot forge a map key.
-            guard let tab = text.firstIndex(of: "\t"),
-                  let kb = UInt64(text[..<tab].trimmingCharacters(in: .whitespacesAndNewlines)),
-                  kb <= UInt64.max / 1024 else { continue }
-            sizes[url.path] = kb * 1024
+            let measured = await measureRoot(url, timeout: timeout)
+            if measured.complete { sizes[url.path] = measured.bytes }
         }
         return sizes
+    }
+
+    static func measureRoot(_ url: URL, timeout: TimeInterval) async -> Measurement {
+        guard let response = await captureResponse(executable: URL(fileURLWithPath: "/usr/bin/du"),
+            arguments: ["-skx", url.path], timeout: timeout) else {
+            return Measurement(bytes: nil, complete: false)
+        }
+        let output = String(decoding: response.data, as: UTF8.self)
+        // Match the entire operand, including any literal line breaks.
+        guard let tab = output.firstIndex(of: "\t"),
+              output[output.index(after: tab)...] == url.path + "\n",
+              let kb = UInt64(output[..<tab].trimmingCharacters(in: .whitespaces)),
+              kb <= UInt64(Int64.max) / 1024 else {
+            return Measurement(bytes: nil, complete: false)
+        }
+        return Measurement(bytes: kb * 1024, complete: response.succeeded)
+    }
+
+    static func measureConcurrently<T: Sendable>(
+        _ urls: [URL], deadline: DispatchTime, parallelism: Int,
+        measure: @escaping @Sendable (URL, TimeInterval) async -> T?
+    ) async -> [String: T] {
+        await withTaskGroup(of: (String, T?).self) { group in
+            var pending = urls.makeIterator()
+            var results: [String: T] = [:]
+            func launchNext() {
+                guard !Task.isCancelled, DispatchTime.now() < deadline, let url = pending.next() else { return }
+                group.addTask {
+                    let now = DispatchTime.now().uptimeNanoseconds
+                    guard !Task.isCancelled, now < deadline.uptimeNanoseconds else { return (url.path, nil) }
+                    let timeout = Double(deadline.uptimeNanoseconds - now) / 1_000_000_000
+                    return (url.path, await measure(url, timeout))
+                }
+            }
+            for _ in 0..<min(parallelism, urls.count) { launchNext() }
+            while let (path, result) = await group.next() {
+                if Task.isCancelled { group.cancelAll(); return [:] }
+                results[path] = result
+                launchNext()
+            }
+            return results
+        }
     }
 
     static func capture(executable: URL, arguments: [String], timeout: TimeInterval) async -> Data? {
@@ -30,6 +71,7 @@ enum DirectorySizeProbe {
         let succeeded: Bool
         let diagnostics: Data
         let timedOut: Bool
+        let exited: Bool
     }
 
     /// A failed traversal can still return lower bounds for readable roots.
@@ -65,7 +107,8 @@ enum DirectorySizeProbe {
                 owner.finish()
                 guard !owner.isCancelled || owner.timedOut else { return nil }
                 return Response(data: data, succeeded: !owner.timedOut && process.terminationStatus == 0,
-                                diagnostics: diagnostics.data, timedOut: owner.timedOut)
+                                diagnostics: diagnostics.data, timedOut: owner.timedOut,
+                                exited: process.terminationReason == .exit)
             }.value
         } onCancel: {
             owner.cancel()

@@ -123,6 +123,7 @@ public final class DeveloperViewModel: ObservableObject {
     @Published public var selectedProjects: Set<UUID> = []
     @Published public var isScanningProjects = false
     @Published public var hasScannedProjects = false
+    @Published private(set) var skippedProjects = ScanSkipSummary()
 
     public var selectedProjectsSize: UInt64 {
         projects.filter { selectedProjects.contains($0.id) }.reduce(0) { $0 + $1.size }
@@ -141,10 +142,12 @@ public final class DeveloperViewModel: ObservableObject {
         isScanningProjects = true
         hasScannedProjects = true
         projects = []
+        skippedProjects = ScanSkipSummary()
         selectedProjects = []
         Task {
-            let found = await manager.scanProjects()
-            self.projects = found
+            let found = await manager.scanProjectsWithReport()
+            self.projects = found.artifacts
+            self.skippedProjects = found.skipped
             self.isScanningProjects = false
         }
     }

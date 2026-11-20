@@ -42,7 +42,8 @@ public struct DeveloperView: View {
                                sizeFilter: $sizeFilter,
                                onScan: { scan() },
                                onApply: { showCleanConfirm = true },
-                               selectedBytes: chosenBytes)
+                               selectedBytes: chosenBytes,
+                               skipped: viewModel.skippedProjects)
             }
         }
         .background(Palette.background)

@@ -405,6 +405,7 @@
 "sysdata.scanning" = "Measuring hidden system storage…";
 "sysdata.idle" = "Find out what \"System Data\" is made of";
 "sysdata.sizeHidden" = "hidden";
+"sysdata.partialSizeFmt" = "≥ %@";
 "sysdata.purgeable.title" = "Purgeable Space";
 "sysdata.purgeable.desc" = "Space macOS can free automatically when needed — caches and snapshots. Finder already counts it as available.";
 "sysdata.snapshots.title" = "Local Time Machine Snapshots";
@@ -796,6 +797,8 @@
 "large.size.10gb" = "from 10 GB";
 "large.partialTitle" = "The search was cut short";
 "large.partialHint" = "It hit its time or file limit, so the list ranks only what it reached. Narrow the scope or raise the minimum size and search again.";
+"large.unreadableTitle" = "The search missed some locations";
+"large.unreadableHint" = "Some locations could not be read. Results cover only the locations the search could read.";
 "kind.video" = "Video";
 "kind.archive" = "Archive";
 "kind.diskImage" = "Disk image";
