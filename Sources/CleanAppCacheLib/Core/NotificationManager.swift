@@ -4,18 +4,23 @@ import UserNotifications
 // MARK: - Notification Manager
 //
 // Handles macOS user notifications for CleanAppCache.
-// Currently supports: low-disk-space alert (throttled to once per 24 h).
+// Throttles monitor and low-disk-space alerts.
 
 @MainActor
 public final class NotificationManager {
     public static let shared = NotificationManager()
     public static let lowDiskEnabledKey = "notifications.lowDiskEnabled"
     private let defaults: UserDefaults
-    private let deliver: (UNNotificationRequest) -> Void
+    typealias Submission = (UNNotificationRequest, @escaping @MainActor @Sendable (Bool) -> Void) -> Void
+    private let deliver: Submission
+    private var pending: Set<String> = []
 
     init(defaults: UserDefaults = .standard,
-         deliver: @escaping (UNNotificationRequest) -> Void = {
-             UNUserNotificationCenter.current().add($0, withCompletionHandler: nil)
+         deliver: @escaping Submission = { request, completion in
+             UNUserNotificationCenter.current().add(request) { error in
+                 let succeeded = error == nil
+                 Task { @MainActor in completion(succeeded) }
+             }
          }) {
         self.defaults = defaults
         self.deliver = deliver
@@ -39,15 +44,20 @@ public final class NotificationManager {
     /// `cooldown` seconds. Used by the monitor threshold alerts.
     public func post(id: String, title: String, body: String,
                      cooldownKey: String, cooldown: TimeInterval = 1800) {
+        guard !pending.contains(cooldownKey) else { return }
         if let last = defaults.object(forKey: cooldownKey) as? Date,
            Date().timeIntervalSince(last) < cooldown { return }
-        defaults.set(Date(), forKey: cooldownKey)
 
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
-        deliver(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+        pending.insert(cooldownKey)
+        deliver(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { [weak self] succeeded in
+            guard let self else { return }
+            self.pending.remove(cooldownKey)
+            if succeeded { self.defaults.set(Date(), forKey: cooldownKey) }
+        }
     }
 
     // MARK: - Low disk
@@ -59,24 +69,11 @@ public final class NotificationManager {
         let freePercent = Double(freeBytes) / Double(totalBytes)
         guard freePercent < 0.10 else { return }
 
-        // Throttle
-        if let last = defaults.object(forKey: Self.lowDiskCooldownKey) as? Date,
-           Date().timeIntervalSince(last) < Self.cooldownInterval { return }
-        defaults.set(Date(), forKey: Self.lowDiskCooldownKey)
-
         let freeFormatted = Fmt.bytes(Int64(freeBytes))
         let loc = Localizer.shared
-
-        let content        = UNMutableNotificationContent()
-        content.title      = loc.s("notification.lowDisk.title")
-        content.body       = loc.f("notification.lowDisk.body", Int(freePercent * 100), freeFormatted)
-        content.sound      = .default
-
-        let request = UNNotificationRequest(
-            identifier: "com.cleanappcache.lowdisk",
-            content: content,
-            trigger: nil    // deliver immediately
-        )
-        deliver(request)
+        post(id: "com.cleanappcache.lowdisk",
+             title: loc.s("notification.lowDisk.title"),
+             body: loc.f("notification.lowDisk.body", Int(freePercent * 100), freeFormatted),
+             cooldownKey: Self.lowDiskCooldownKey, cooldown: Self.cooldownInterval)
     }
 }

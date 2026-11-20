@@ -64,22 +64,46 @@ final class NetworkCountersTests: XCTestCase {
                        Counters.Delta(received: 10, sent: 20))
     }
 
-    func testCountersWrapIndependentlyWithoutLosingOtherLinkTraffic() {
+    func testCounterDecreaseRebaselinesOnlyThatLink() {
         var counters = Counters()
-        _ = counters.update([wifi: .init(received: UInt32.max - 5, sent: 200),
-                             ethernet: .init(received: 300, sent: UInt32.max - 10)])
+        _ = counters.update([wifi: .init(received: 5_000_000_000, sent: 200),
+                             ethernet: .init(received: 300, sent: 400)])
         XCTAssertEqual(counters.update([wifi: .init(received: 4, sent: 220),
-                                        ethernet: .init(received: 330, sent: 9)]),
-                       Counters.Delta(received: 40, sent: 40))
+                                        ethernet: .init(received: 330, sent: 440)]),
+                       Counters.Delta(received: 30, sent: 40))
+        XCTAssertEqual(counters.update([wifi: .init(received: 9, sent: 230),
+                                        ethernet: .init(received: 330, sent: 440)]),
+                       Counters.Delta(received: 5, sent: 10))
     }
 
-    func testAggregateTrafficCanExceedOne32BitCounter() {
+    func testTrafficOnOneInterfaceCanExceedFourGiBPerSample() {
         var counters = Counters()
-        _ = counters.update([wifi: .init(received: 0, sent: 0),
-                             ethernet: .init(received: 0, sent: 0)])
-        XCTAssertEqual(counters.update([wifi: .init(received: 3_000_000_000, sent: 3_000_000_000),
-                                        ethernet: .init(received: 3_000_000_000, sent: 3_000_000_000)]),
+        _ = counters.update([wifi: .init(received: 11_000_000_000, sent: 12_000_000_000)])
+        XCTAssertEqual(counters.update([wifi: .init(received: 17_000_000_000, sent: 18_000_000_000)]),
                        Counters.Delta(received: 6_000_000_000, sent: 6_000_000_000))
+    }
+
+    func testInterfaceMessageDecodesFullWidthCountersAndRejectsTruncation() throws {
+        var header = if_msghdr2()
+        header.ifm_msglen = UInt16(MemoryLayout<if_msghdr2>.size)
+        header.ifm_version = UInt8(RTM_VERSION)
+        header.ifm_type = UInt8(RTM_IFINFO2)
+        header.ifm_index = 7
+        header.ifm_data.ifi_ibytes = 10_000_000_001
+        header.ifm_data.ifi_obytes = 20_000_000_002
+
+        let counters = withUnsafeBytes(of: &header, SystemProbes.decodeInterfaceByteCounters)
+        let link = try XCTUnwrap(counters?[7])
+        XCTAssertEqual(link.received, 10_000_000_001)
+        XCTAssertEqual(link.sent, 20_000_000_002)
+        withUnsafeBytes(of: &header) {
+            XCTAssertNil(SystemProbes.decodeInterfaceByteCounters(UnsafeRawBufferPointer(rebasing: $0.dropLast())))
+        }
+    }
+
+    func testKernelInterfaceDumpIncludesLoopback() throws {
+        let counters = try XCTUnwrap(SystemProbes.interfaceByteCounters())
+        XCTAssertNotNil(counters[if_nametoindex("lo0")])
     }
 
     func testUnreadableIntervalResetsInsteadOfCompressingOldTrafficIntoNextTick() {

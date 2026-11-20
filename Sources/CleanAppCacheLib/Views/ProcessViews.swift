@@ -45,7 +45,7 @@ struct ProcessTable: View {
         let rows = visible
         let peak = rows.map(magnitude).max() ?? 1
         return VStack(spacing: 0) {
-            CardHeader(title: loc.s("monitor.processes"), detail: countText, height: 48) {
+            CardHeader(title: loc.s("monitor.processes"), detail: countText(visible: rows.count), height: 48) {
                 HStack(spacing: 10) {
                     SearchField(text: $query,
                                 placeholder: loc.s("monitor.searchProcess"),
@@ -95,13 +95,7 @@ struct ProcessTable: View {
     // MARK: Data
 
     private var visible: [ProcessGroup] {
-        var list = groups
-        if !query.isEmpty {
-            list = list.filter { $0.name.localizedCaseInsensitiveContains(query) }
-        }
-        return list.sorted {
-            sortByMemory ? $0.memBytes > $1.memBytes : $0.cpuPercent > $1.cpuPercent
-        }
+        ProcessGroup.ranked(groups, byMemory: sortByMemory, query: query)
     }
 
     private func magnitude(_ group: ProcessGroup) -> Double {
@@ -112,12 +106,10 @@ struct ProcessTable: View {
         sortByMemory ? Double(item.memBytes) : item.cpuPercent
     }
 
-    /// The sampler ranks a fixed slice of the process list, so this counts the
-    /// groups on screen — it is not a system-wide process census.
-    private var countText: String {
+    private func countText(visible: Int) -> String {
         query.isEmpty
-            ? Fmt.count(groups.count)
-            : loc.f("monitor.procFilteredFmt", Fmt.count(visible.count), Fmt.count(groups.count))
+            ? Fmt.count(visible)
+            : loc.f("monitor.procFilteredFmt", Fmt.count(visible), Fmt.count(groups.count))
     }
 
     // MARK: Rows

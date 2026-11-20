@@ -57,7 +57,7 @@ public struct SystemSnapshot: Sendable {
     /// NVMe SMART log; never derived from anything else.
     public var ssdEndurance: SSDEndurance?
 
-    /// A larger set of processes; views sort/slice as needed.
+    /// All readable processes in this census, before grouping and ranking.
     public var processes: [ProcessInfoItem]
     /// Changes only when `processes` was listed afresh. The list is cached for
     /// longer than one tick, and a tick that repeats it repeats this value, so a
@@ -77,6 +77,7 @@ public struct SystemSnapshot: Sendable {
     // Best-effort / may be nil on some hardware
     public var batteryPercent: Double?
     public var batteryCharging: Bool?
+    public var batteryPowerSource: BatteryPowerSource? = nil
     public var batteryCycleCount: Int?
     /// Battery health = current max capacity / design capacity (0…100), or nil.
     public var batteryHealthPercent: Double?
@@ -84,7 +85,7 @@ public struct SystemSnapshot: Sendable {
     /// capacity it is measured against. Both in mAh, both read from the battery.
     public var batteryCapacityMAh: Int?
     public var batteryDesignCapacityMAh: Int?
-    /// The "power" row — adapter wattage, nil when running on battery.
+    /// Rated wattage reported by the adapter, when available.
     public var powerAdapterWatts: Int?
     public var gpuPercent: Double?
 
@@ -167,19 +168,39 @@ public struct TempOrigin: Sendable {
     }
 }
 
+public enum BatteryPowerSource: Equatable, Sendable {
+    case adapter, battery
+
+    init?(state: String?) {
+        switch state {
+        case kIOPSACPowerValue: self = .adapter
+        case kIOPSBatteryPowerValue: self = .battery
+        default: return nil
+        }
+    }
+}
+
 public struct ProcessInfoItem: Identifiable, Sendable {
     public let id: Int32         // pid
     public let ppid: Int32       // parent pid
     public let name: String
     public let cpuPercent: Double
     public let memBytes: UInt64
+    let startTime: UInt64?
 
     public init(id: Int32, ppid: Int32 = 0, name: String, cpuPercent: Double, memBytes: UInt64) {
+        self.init(id: id, ppid: ppid, name: name, cpuPercent: cpuPercent,
+                  memBytes: memBytes, startTime: nil)
+    }
+
+    init(id: Int32, ppid: Int32 = 0, name: String, cpuPercent: Double,
+         memBytes: UInt64, startTime: UInt64?) {
         self.id = id
         self.ppid = ppid
         self.name = name
         self.cpuPercent = cpuPercent
         self.memBytes = memBytes
+        self.startTime = startTime
     }
 }
 
@@ -190,6 +211,17 @@ public struct ProcessGroup: Identifiable, Sendable {
     public let cpuPercent: Double
     public let memBytes: UInt64
     public let children: [ProcessInfoItem]   // sorted; >1 means expandable
+
+    static func ranked(_ groups: [Self], byMemory: Bool, query: String) -> [Self] {
+        let matches = query.isEmpty ? groups : groups.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        let sorted = matches.sorted {
+            if byMemory, $0.memBytes != $1.memBytes { return $0.memBytes > $1.memBytes }
+            if $0.cpuPercent != $1.cpuPercent { return $0.cpuPercent > $1.cpuPercent }
+            if $0.memBytes != $1.memBytes { return $0.memBytes > $1.memBytes }
+            return $0.name < $1.name
+        }
+        return query.isEmpty ? Array(sorted.prefix(40)) : sorted
+    }
 }
 
 /// Static machine facts, sampled once.
@@ -219,9 +251,10 @@ public struct MachineInfo: Sendable {
 /// it queues anything, and probing the GPU sensor on that queue), and
 /// `MenuBarController` owns a separate instance driven on its own queue. Do not
 /// share an instance across queues; another consumer creates its own instance.
-/// `terminate(pid:)` and `groupProcesses(_:)` read no instance state.
+/// `terminate(_:)` and `groupProcesses(_:)` read no instance state.
 public final class SystemMonitor: @unchecked Sendable {
     public static let shared = SystemMonitor()
+    private let hostPort = mach_host_self()
 
     // Previous counters for delta computation.
     private var prevCPUTicks: host_cpu_load_info?
@@ -288,6 +321,10 @@ public final class SystemMonitor: @unchecked Sendable {
         self.tempCacheTTL = temperatureTTL
     }
 
+    deinit {
+        mach_port_deallocate(mach_task_self_, hostPort)
+    }
+
     /// Which temperatures a sample has to produce. Each costs its own SMC reads,
     /// and one that SMC cannot answer costs the IOHID walk, so a caller names
     /// only the ones it shows.
@@ -316,11 +353,18 @@ public final class SystemMonitor: @unchecked Sendable {
         /// nil when not asked for, as well as when unreadable.
         public var cpuTemp: Double?
         public var gpuTemp: Double?
+        var cpuTempSampleTime: TimeInterval?
     }
+
+    private var menuCPU: (overall: Double, perCore: [Double]) = (0, [])
 
     public func menuSample(includeGPU: Bool = true,
                            temperatures: TemperatureSet = [.cpu, .gpu]) -> MenuReading {
-        let (cpu, perCore) = sampleCPU()
+        menuSample(includeGPU: includeGPU, temperatures: temperatures, refreshCPU: true)
+    }
+
+    func menuSample(includeGPU: Bool, temperatures: TemperatureSet, refreshCPU: Bool) -> MenuReading {
+        if refreshCPU { menuCPU = sampleCPU() }
         let mem = sampleMemory()
         // GPU load needs an IOAccelerator registry walk; each temperature needs
         // its SMC key set. These are the app's always-on cost, so skip whatever
@@ -328,13 +372,14 @@ public final class SystemMonitor: @unchecked Sendable {
         let gpu = includeGPU ? sampleGPUThrottled() : nil
         let temps = temperatures.isEmpty ? nil : sampleTemperaturesThrottled(temperatures)
         return MenuReading(
-            cpu: cpu,
-            perCore: perCore,
+            cpu: menuCPU.overall,
+            perCore: menuCPU.perCore,
             memPercent: Double(mem.used) / Double(max(mem.total, 1)) * 100,
             memPressure: mem.pressure,
             gpu: gpu,
-            cpuTemp: temperatures.contains(.cpu) ? temps?.cpu : nil,
-            gpuTemp: temperatures.contains(.gpu) ? temps?.gpu : nil
+            cpuTemp: temperatures.contains(.cpu) ? temps?.value.cpu : nil,
+            gpuTemp: temperatures.contains(.gpu) ? temps?.value.gpu : nil,
+            cpuTempSampleTime: temperatures.contains(.cpu) ? temps?.at : nil
         )
     }
 
@@ -352,9 +397,10 @@ public final class SystemMonitor: @unchecked Sendable {
         let swap = sampleSwapUsed()
         let net = sampleNetwork(interval: interval, resetBaseline: slept)
         let disk = sampleDisk(interval: interval, resetBaseline: slept)
-        let procs = listProcessesThrottled(limit: 40)
+        let procs = listProcessesThrottled()
         let battery = sampleBattery()
-        let temps = sampleTemperaturesThrottled(.all)
+        let wanted = Self.monitorTemperatures(hasBattery: battery.isPresent, hasGPU: gpuTempProbed)
+        let temps = sampleTemperaturesThrottled(wanted).value
         let freqs = ioReport.sample()
 
         return SystemSnapshot(
@@ -385,11 +431,12 @@ public final class SystemMonitor: @unchecked Sendable {
             processes: procs.items,
             processListID: procs.id,
             uptimeSeconds: uptimeSinceBoot(),
-            threadCount: SystemProbes.systemThreadCount(),
+            threadCount: SystemProbes.systemThreadCount(host: hostPort),
             loadAverage1m: SystemProbes.loadAverage1m(),
             displayCount: displayCountThrottled(),
             batteryPercent: battery.percent,
             batteryCharging: battery.charging,
+            batteryPowerSource: battery.powerSource,
             batteryCycleCount: battery.cycles,
             batteryHealthPercent: battery.health,
             batteryCapacityMAh: battery.capacityMAh,
@@ -406,8 +453,8 @@ public final class SystemMonitor: @unchecked Sendable {
             // fallback for hardware that publishes no accelerator statistics.
             gpuPercent: sampleGPUThrottled() ?? freqs.gpuBusy,
             tempCPU: temps.cpu,
-            tempGPU: temps.gpu,
-            tempBattery: temps.battery,
+            tempGPU: wanted.contains(.gpu) ? temps.gpu : nil,
+            tempBattery: wanted.contains(.battery) ? temps.battery : nil,
             tempOrigin: temps.origin,
             freqECluster: freqs.e,
             freqPCluster: freqs.p,
@@ -423,7 +470,7 @@ public final class SystemMonitor: @unchecked Sendable {
         var info = host_cpu_load_info()
         let overall: Double = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+                host_statistics(hostPort, HOST_CPU_LOAD_INFO, $0, &count)
             }
         } == KERN_SUCCESS ? computeOverallCPU(info) : 0
 
@@ -452,7 +499,7 @@ public final class SystemMonitor: @unchecked Sendable {
         var infoArray: processor_info_array_t?
         var infoCount: mach_msg_type_number_t = 0
 
-        let result = host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO,
+        let result = host_processor_info(hostPort, PROCESSOR_CPU_LOAD_INFO,
                                          &cpuCount, &infoArray, &infoCount)
         guard result == KERN_SUCCESS, let array = infoArray else { return [] }
         defer {
@@ -491,7 +538,7 @@ public final class SystemMonitor: @unchecked Sendable {
     /// `vm_kernel_page_size`).
     private func pageSizeBytes() -> vm_size_t {
         var size: vm_size_t = 0
-        return host_page_size(mach_host_self(), &size) == KERN_SUCCESS ? size : vm_size_t(4096)
+        return host_page_size(hostPort, &size) == KERN_SUCCESS ? size : vm_size_t(4096)
     }
 
     /// One memory reading. The memory panel needs the breakdown fields, so they
@@ -515,7 +562,7 @@ public final class SystemMonitor: @unchecked Sendable {
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
         let result = withUnsafeMutablePointer(to: &stats) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+                host_statistics64(hostPort, HOST_VM_INFO64, $0, &count)
             }
         }
         guard result == KERN_SUCCESS else {
@@ -622,8 +669,8 @@ public final class SystemMonitor: @unchecked Sendable {
         }
 
         struct Bytes {
-            let received: UInt32
-            let sent: UInt32
+            let received: UInt64
+            let sent: UInt64
         }
 
         struct Delta: Equatable {
@@ -643,11 +690,11 @@ public final class SystemMonitor: @unchecked Sendable {
             for (interface, bytes) in current {
                 // A new link's lifetime counters are not session traffic. An
                 // unplugged link contributes nothing and loses its baseline.
-                guard let old = previous[interface] else { continue }
-                // if_data counters wrap independently at 2^32. Delta each
-                // retained link before widening and summing the byte counts.
-                received += UInt64(bytes.received &- old.received)
-                sent += UInt64(bytes.sent &- old.sent)
+                // A counter decrease indicates the link has been reinitialized.
+                guard let old = previous[interface],
+                      bytes.received >= old.received, bytes.sent >= old.sent else { continue }
+                received += bytes.received - old.received
+                sent += bytes.sent - old.sent
             }
             return Delta(received: received, sent: sent)
         }
@@ -671,7 +718,9 @@ public final class SystemMonitor: @unchecked Sendable {
     /// to real hardware, so tunnels, bridges and VLANs do not inflate it.
     private func sampleNetwork(interval: TimeInterval,
                                resetBaseline: Bool = false) -> NetSample {
+        let byteCounters = SystemProbes.interfaceByteCounters()
         var counters: [NetworkCounters.Interface: NetworkCounters.Bytes] = [:]
+        var physicalNames: Set<String> = []
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0, let first = ifaddr else {
             networkCounters.reset()
@@ -686,11 +735,13 @@ public final class SystemMonitor: @unchecked Sendable {
                   let data = cur.pointee.ifa_data?.assumingMemoryBound(to: if_data.self),
                   SystemProbes.isPhysicalLinkType(data.pointee.ifi_type)
             else { continue }
-            let link = UnsafeRawPointer(addr).assumingMemoryBound(to: sockaddr_dl.self).pointee
-            let interface = NetworkCounters.Interface(name: String(cString: cur.pointee.ifa_name),
-                                                      index: UInt32(link.sdl_index))
-            counters[interface] = NetworkCounters.Bytes(received: data.pointee.ifi_ibytes,
-                                                        sent: data.pointee.ifi_obytes)
+            let link = UnsafeRawPointer(addr).loadUnaligned(as: sockaddr_dl.self)
+            let name = String(cString: cur.pointee.ifa_name)
+            let index = UInt32(link.sdl_index)
+            physicalNames.insert(name)
+            if let bytes = byteCounters?[index] {
+                counters[NetworkCounters.Interface(name: name, index: index)] = bytes
+            }
         }
 
         // Which physical link is carrying traffic. The routing table can name
@@ -700,22 +751,12 @@ public final class SystemMonitor: @unchecked Sendable {
         // recognises as theirs. Only if none of them is physical do we fall back
         // to naming the tunnel, which is then the literal truth.
         let candidates = defaultRouteInterfacesThrottled()
-        let physical = candidates.first { name in
-            var ptr: UnsafeMutablePointer<ifaddrs>? = first
-            while let cur = ptr {
-                defer { ptr = cur.pointee.ifa_next }
-                guard String(cString: cur.pointee.ifa_name) == name,
-                      let addr = cur.pointee.ifa_addr, addr.pointee.sa_family == UInt8(AF_LINK),
-                      let data = cur.pointee.ifa_data?.assumingMemoryBound(to: if_data.self)
-                else { continue }
-                return SystemProbes.isPhysicalLinkType(data.pointee.ifi_type)
-            }
-            return false
-        }
+        let physical = candidates.first(where: physicalNames.contains)
         let chosen = physical ?? candidates.first
         let address = chosen.flatMap { SystemProbes.address(of: $0, from: first) }
 
-        guard let delta = networkCounters.update(counters) else {
+        if byteCounters == nil { networkCounters.reset() }
+        guard let delta = byteCounters == nil ? nil : networkCounters.update(counters) else {
             lastNetActivity = Self.monotonicNow()
             return NetSample(down: 0, up: 0, interfaceBSDName: chosen,
                              localAddress: address, idleSeconds: nil)
@@ -862,20 +903,35 @@ public final class SystemMonitor: @unchecked Sendable {
 
     // MARK: Battery (best-effort via IOKit power sources)
 
-    private func sampleBattery() -> (percent: Double?, charging: Bool?, cycles: Int?, health: Double?,
-                                     capacityMAh: Int?, designMAh: Int?) {
+    private struct BatterySample {
+        var isPresent: Bool?
+        var percent: Double?
+        var charging: Bool?
+        var powerSource: BatteryPowerSource?
+        var cycles: Int?
+        var health: Double?
+        var capacityMAh: Int?
+        var designMAh: Int?
+    }
+
+    private func sampleBattery() -> BatterySample {
         guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
               let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef]
-        else { return (nil, nil, nil, nil, nil, nil) }
+        else { return BatterySample() }
         // A connected UPS is a power source too, and taking `sources.first`
         // presented its charge as the Mac's battery — while cycles/health from
         // AppleSmartBattery stayed nil, a chimera panel. Only the internal
         // battery may fill the battery card; a UPS-equipped desktop shows "—"
         // like every other desktop.
-        let internalDesc = sources.lazy
-            .compactMap { IOPSGetPowerSourceDescription(blob, $0)?.takeUnretainedValue() as? [String: Any] }
-            .first { $0[kIOPSTypeKey] as? String == kIOPSInternalBatteryType }
-        guard let desc = internalDesc else { return (nil, nil, nil, nil, nil, nil) }
+        let descriptions = sources.map {
+            IOPSGetPowerSourceDescription(blob, $0)?.takeUnretainedValue() as? [String: Any]
+        }
+        guard let desc = descriptions.lazy.compactMap({ $0 }).first(where: {
+            $0[kIOPSTypeKey] as? String == kIOPSInternalBatteryType
+        }) else {
+            let complete = descriptions.allSatisfy { $0?[kIOPSTypeKey] is String }
+            return BatterySample(isPresent: complete ? false : nil)
+        }
 
         var percent: Double?
         if let cur = desc[kIOPSCurrentCapacityKey] as? Double,
@@ -884,8 +940,10 @@ public final class SystemMonitor: @unchecked Sendable {
         }
         let charging = desc[kIOPSIsChargingKey] as? Bool
         let details = batteryDetails()
-        return (percent, charging, details.cycles, details.health,
-                details.capacityMAh, details.designMAh)
+        return BatterySample(isPresent: true, percent: percent, charging: charging,
+                             powerSource: BatteryPowerSource(state: desc[kIOPSPowerSourceStateKey] as? String),
+                             cycles: details.cycles, health: details.health,
+                             capacityMAh: details.capacityMAh, designMAh: details.designMAh)
     }
 
     /// Cycle count, health (%) and the raw mAh pair from the AppleSmartBattery
@@ -959,14 +1017,22 @@ public final class SystemMonitor: @unchecked Sendable {
     private static let gpuTempKeys = ["TG0P", "TGDD", "Tg0G", "Tg0H", "Tg05", "Tg0D"]
     private static let batteryTempKeys = ["TB0T", "TB1T", "TB2T"]
 
-    private func sampleTemperaturesThrottled(_ wanted: TemperatureSet) -> Temperatures {
+    static func monitorTemperatures(hasBattery: Bool?, hasGPU: Bool?) -> TemperatureSet {
+        var wanted = TemperatureSet.cpu
+        if hasBattery != false { wanted.insert(.battery) }
+        if hasGPU != false { wanted.insert(.gpu) }
+        return wanted
+    }
+
+    private func sampleTemperaturesThrottled(_ wanted: TemperatureSet)
+        -> (value: Temperatures, covers: TemperatureSet, at: TimeInterval) {
         if let c = tempCache, c.covers.isSuperset(of: wanted),
            Self.monotonicNow() - c.at < tempCacheTTL {
-            return c.value
+            return c
         }
-        let value = sampleTemperatures(wanted)
-        tempCache = (value, wanted, Self.monotonicNow())
-        return value
+        let reading = (sampleTemperatures(wanted), wanted, Self.monotonicNow())
+        tempCache = reading
+        return reading
     }
 
     /// Every IOHID temperature sensor that reads, hottest first.
@@ -1198,13 +1264,11 @@ public final class SystemMonitor: @unchecked Sendable {
         return ssdEndurance
     }
 
-    // MARK: Top processes (via `ps`)
+    // MARK: Processes
 
     // The process list drives the bottom panel only and changes slowly, while
-    // `sample()` runs every ~2 s for the live graphs. Forking `ps` every tick is
-    // the single most expensive part of a sample, so we cache the result and
-    // refresh it at most every few seconds — the graphs stay at full cadence,
-    // the (cheap) process panel updates a little less often.
+    // `sample()` runs every ~2 s for the live graphs. Cache the process census
+    // so the per-process libproc calls do not run on every graph tick.
     private var procCache: (procs: [ProcessInfoItem], id: Int, at: TimeInterval)?
     private let procCacheTTL: TimeInterval = 5
     /// Counts fresh listings; becomes `SystemSnapshot.processListID`.
@@ -1220,23 +1284,22 @@ public final class SystemMonitor: @unchecked Sendable {
         return Double(timebase.numer) / Double(timebase.denom)
     }()
 
-    // Per-PID cumulative CPU time (Mach ticks) from the previous process sample, used to
-    // compute %CPU as a delta. Rebuilt each sample so dead PIDs drop out (no leak,
-    // and recycled PIDs can't inherit a stale baseline).
-    private var prevProcCPU: [Int32: UInt64] = [:]
+    // Pair cumulative CPU time with the start time so recycled PIDs cannot
+    // inherit a previous process's CPU baseline.
+    private var prevProcCPU: [Int32: (startTime: UInt64, ticks: UInt64)] = [:]
     private var prevProcAt: TimeInterval?
 
-    private func listProcessesThrottled(limit: Int) -> (items: [ProcessInfoItem], id: Int) {
+    private func listProcessesThrottled() -> (items: [ProcessInfoItem], id: Int) {
         if let c = procCache, Self.monotonicNow() - c.at < procCacheTTL {
             return (c.procs, c.id)
         }
-        let procs = listProcesses(limit: limit)
+        let procs = listProcesses()
         procListCount &+= 1
         procCache = (procs, procListCount, Self.monotonicNow())
         return (procs, procListCount)
     }
 
-    private func listProcesses(limit: Int) -> [ProcessInfoItem] {
+    private func listProcesses() -> [ProcessInfoItem] {
         // Enumerate all PIDs via libproc (no `ps` fork).
         let needed = proc_listpids(UInt32(PROC_ALL_PIDS), 0, nil, 0)
         guard needed > 0 else { return [] }
@@ -1249,52 +1312,44 @@ public final class SystemMonitor: @unchecked Sendable {
 
         let now = Self.uptimeNow()
         let wall = prevProcAt.map { now - $0 } ?? 0
-        var newPrev: [Int32: UInt64] = [:]
+        var newPrev: [Int32: (startTime: UInt64, ticks: UInt64)] = [:]
         newPrev.reserveCapacity(n)
-
-        struct Raw { let pid: Int32; let cpu: Double; let mem: UInt64 }
-        var raws: [Raw] = []
-        raws.reserveCapacity(n)
+        var items: [ProcessInfoItem] = []
+        items.reserveCapacity(n)
+        var nameBuf = [CChar](repeating: 0, count: 256)
 
         for idx in 0..<n {
             let pid = pids[idx]
-            if pid <= 0 { continue }
-
-            // One rusage call yields phys_footprint (matches Activity Monitor's
-            // "Memory" column) plus cumulative user+system CPU time in ns.
-            var usage = rusage_info_current()
-            let ok = withUnsafeMutablePointer(to: &usage) { ptr in
-                ptr.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { rebound in
-                    proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, rebound)
-                }
-            }
-            guard ok == 0 else { continue }
+            guard pid > 0, let usage = Self.processUsage(pid) else { continue }
 
             let cpuTicks = usage.ri_user_time &+ usage.ri_system_time
-            newPrev[pid] = cpuTicks
+            let startTime = usage.ri_proc_start_abstime
+            if startTime != 0 { newPrev[pid] = (startTime, cpuTicks) }
             var cpu = 0.0
-            if wall > 0, let prev = prevProcCPU[pid], cpuTicks >= prev {
-                cpu = Double(cpuTicks - prev) * Self.rusageTickNanoseconds / (wall * 1_000_000_000) * 100
+            if wall > 0, let prev = prevProcCPU[pid], prev.startTime == startTime, cpuTicks >= prev.ticks {
+                cpu = Double(cpuTicks - prev.ticks) * Self.rusageTickNanoseconds / (wall * 1_000_000_000) * 100
             }
-            raws.append(Raw(pid: pid, cpu: cpu, mem: usage.ri_phys_footprint))
+            let nlen = proc_name(pid, &nameBuf, UInt32(nameBuf.count))
+            let name = nlen > 0 ? String(cString: nameBuf) : "pid \(pid)"
+            items.append(ProcessInfoItem(id: pid, name: name, cpuPercent: cpu,
+                                         memBytes: usage.ri_phys_footprint,
+                                         startTime: startTime == 0 ? nil : startTime))
         }
 
         prevProcCPU = newPrev
         prevProcAt = now
 
-        // Rank by CPU then memory, and only resolve names for the top `limit`
-        // (proc_name is a syscall per pid — skip it for rows we won't show).
-        let top = raws.sorted {
-            $0.cpu != $1.cpu ? $0.cpu > $1.cpu : $0.mem > $1.mem
-        }.prefix(limit)
+        return items
+    }
 
-        return top.map { r in
-            var nameBuf = [CChar](repeating: 0, count: 256)
-            let nlen = proc_name(r.pid, &nameBuf, UInt32(nameBuf.count))
-            let name = nlen > 0 ? String(cString: nameBuf) : "pid \(r.pid)"
-            return ProcessInfoItem(id: r.pid, ppid: 0, name: name,
-                                   cpuPercent: r.cpu, memBytes: r.mem)
+    private static func processUsage(_ pid: Int32) -> rusage_info_current? {
+        var usage = rusage_info_current()
+        let result = withUnsafeMutablePointer(to: &usage) {
+            $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
+                proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, $0)
+            }
         }
+        return result == 0 ? usage : nil
     }
 
     /// Groups processes that belong to the same app (e.g. "Chrome" and its
@@ -1345,7 +1400,7 @@ public final class SystemMonitor: @unchecked Sendable {
     public func probeGPUTempAvailable() -> Bool {
         if let p = gpuTempProbed { return p }
         if let next = nextGPUTempProbeAt, Self.monotonicNow() < next { return true }
-        let available = sampleTemperaturesThrottled(.gpu).gpu != nil
+        let available = sampleTemperaturesThrottled(.gpu).value.gpu != nil
         if available {
             gpuTempProbed = true
             return true
@@ -1549,17 +1604,25 @@ public final class SystemMonitor: @unchecked Sendable {
     /// about unsaved documents; a bare SIGTERM would skip all of that. Other
     /// processes get SIGTERM. "Exited" is reported only once the process is
     /// gone, not when the signal was merely delivered.
-    public func terminate(pid: Int32) async -> TerminationOutcome {
+    public func terminate(_ process: ProcessInfoItem) async -> TerminationOutcome {
+        let pid = process.id
+        guard pid > 0, let startTime = process.startTime, startTime != 0 else { return .refused }
         let asked: Bool = await MainActor.run {
-            if let app = NSRunningApplication(processIdentifier: pid), app.bundleURL != nil {
+            let app = NSRunningApplication(processIdentifier: pid)
+            let isApp = app?.bundleURL != nil
+            guard Self.processUsage(pid)?.ri_proc_start_abstime == startTime else { return false }
+            if let app, isApp {
                 return app.terminate()
             }
             return kill(pid, SIGTERM) == 0
         }
         guard asked else { return .refused }
         for _ in 0..<15 {
-            // Signal 0 checks existence; ESRCH means the process is gone.
-            if kill(pid, 0) != 0, errno == ESRCH { return .exited }
+            if let current = Self.processUsage(pid)?.ri_proc_start_abstime, current != 0 {
+                if current != startTime { return .exited }
+            } else if kill(pid, 0) != 0, errno == ESRCH {
+                return .exited
+            }
             try? await Task.sleep(nanoseconds: 200_000_000)
         }
         return .stillRunning

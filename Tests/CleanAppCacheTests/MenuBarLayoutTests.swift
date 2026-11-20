@@ -110,4 +110,28 @@ final class MenuBarLayoutTests: XCTestCase {
             XCTAssertEqual(ids, ["memLoad", "cpuLoad", "cpuTemp"])
         }
     }
+
+    func testGraphHistoryFollowsOnlyTheFirstPinnedLoad() {
+        let controller = MenuBarController(defaults: nil, startSampling: false)
+        controller.selectedMetrics = [.cpuLoad, .memLoad]
+        controller.appendHistory()
+        XCTAssertEqual(controller.labelState(style: .graph).history.count, 1)
+
+        controller.selectedMetrics = [.cpuLoad, .cpuTemp, .memLoad]
+        XCTAssertEqual(controller.labelState(style: .graph).history.count, 1)
+
+        controller.toggle(.cpuLoad)
+        controller.appendHistory()
+        let temperature = controller.labelState(style: .graph)
+        XCTAssertNil(temperature.cells.first?.fraction)
+        XCTAssertTrue(temperature.history.isEmpty)
+        let numericOnly = controller.labelState(style: .value)
+        XCTAssertEqual(MenuBarLabelRenderer.image(temperature).size.width,
+                       MenuBarLabelRenderer.image(numericOnly).size.width)
+
+        controller.toggle(.cpuTemp)
+        XCTAssertTrue(controller.labelState(style: .graph).history.isEmpty)
+        controller.appendHistory()
+        XCTAssertEqual(controller.labelState(style: .graph).history.count, 1)
+    }
 }

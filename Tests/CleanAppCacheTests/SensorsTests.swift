@@ -133,6 +133,7 @@ final class SensorsTests: XCTestCase {
         let none = monitor.menuSample(includeGPU: false, temperatures: [])
         XCTAssertNil(none.gpu)
         XCTAssertNil(none.cpuTemp)
+        XCTAssertNil(none.cpuTempSampleTime)
         XCTAssertNil(none.gpuTemp)
 
         let cpuOnly = monitor.menuSample(includeGPU: false, temperatures: .cpu)
@@ -140,10 +141,53 @@ final class SensorsTests: XCTestCase {
         if let t = cpuOnly.cpuTemp { XCTAssertTrue(SMCReader.isPlausibleTemp(t), "cpu temp \(t)") }
     }
 
+    func testMenuSampleReusesTemperatureTimestampAndUnscheduledRefreshKeepsCPULoad() throws {
+        let monitor = SystemMonitor(temperatureTTL: 60)
+        let scheduled = monitor.menuSample(includeGPU: false, temperatures: .cpu)
+        let refreshed = monitor.menuSample(includeGPU: false, temperatures: .cpu, refreshCPU: false)
+        XCTAssertEqual(refreshed.cpuTempSampleTime, try XCTUnwrap(scheduled.cpuTempSampleTime))
+        XCTAssertEqual(refreshed.cpu, scheduled.cpu)
+        XCTAssertEqual(refreshed.perCore, scheduled.perCore)
+    }
+
+    func testTemperatureRequestsExcludeOnlyConfirmedMissingSensors() {
+        XCTAssertEqual(SystemMonitor.monitorTemperatures(hasBattery: false, hasGPU: false), .cpu)
+        XCTAssertEqual(SystemMonitor.monitorTemperatures(hasBattery: nil, hasGPU: false), [.cpu, .battery])
+        XCTAssertEqual(SystemMonitor.monitorTemperatures(hasBattery: false, hasGPU: nil), [.cpu, .gpu])
+        XCTAssertEqual(SystemMonitor.monitorTemperatures(hasBattery: true, hasGPU: true), .all)
+    }
+
+    func testPowerSourceRecognizesACIndependentlyOfChargingAndWattage() {
+        XCTAssertEqual(BatteryPowerSource(state: "AC Power"), .adapter)
+        XCTAssertEqual(BatteryPowerSource(state: "Battery Power"), .battery)
+        XCTAssertNil(BatteryPowerSource(state: nil))
+        XCTAssertNil(BatteryPowerSource(state: "UPS Power"))
+    }
+
+    func testMonitorReleasesItsHostPortAndDoesNotAcquireOnePerPoll() {
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
+        func refs() -> mach_port_urefs_t {
+            var count: mach_port_urefs_t = 0
+            XCTAssertEqual(mach_port_get_refs(mach_task_self_, host, MACH_PORT_RIGHT_SEND, &count), KERN_SUCCESS)
+            return count
+        }
+
+        // Warm up framework code before measuring the sampler's own references.
+        _ = SystemMonitor().menuSample(includeGPU: false, temperatures: [])
+        let baseline = refs()
+        var monitor: SystemMonitor? = SystemMonitor()
+        for _ in 0..<3 { _ = monitor?.menuSample(includeGPU: false, temperatures: []) }
+        XCTAssertEqual(refs(), baseline + 1)
+        monitor = nil
+        XCTAssertEqual(refs(), baseline)
+    }
+
     /// Battery health is derived from mAh capacities. On Apple Silicon those live
     /// in the nested `BatteryData` dictionary — a top-level `DesignCapacity`
     /// lookup finds nothing there and returns nil every time.
-    func testBatteryHealthIsReadableWhenABatteryExists() {
+    func testBatteryHealthIsReadableWhenABatteryExists() throws {
+        try skipUnlessRealHardware("battery health")
         let monitor = SystemMonitor(temperatureTTL: 0)
         let snap = monitor.sample()
         guard snap.batteryPercent != nil else {
