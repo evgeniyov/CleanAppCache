@@ -270,9 +270,10 @@ public actor Scanner {
             for url in candidates {
                 guard !Task.isCancelled else { return }
                 var size = sizes[url.path]
-                // Retry only missing or uncertain roots from the batch.
+                // A failed batch cannot establish which sizes are complete.
+                // Retry individual paths so one unreadable tree cannot hide its peers.
                 if size == nil, sizeProvider == nil {
-                    size = await measureScanBatch([url], timeout: 20, retainPeers: false)[url.path]
+                    size = await measureScanBatch([url], timeout: 20)[url.path]
                 }
                 guard !Task.isCancelled else { return }
                 guard let identity = identities[url], identity.matches(url) else { record(url, .unreadable); continue }
@@ -429,27 +430,10 @@ public actor Scanner {
         return result
     }
 
-    private nonisolated func measureScanBatch(_ urls: [URL], timeout: TimeInterval,
-                                              retainPeers: Bool = true) async -> [String: UInt64] {
-        guard let response = await DirectorySizeProbe.captureResponse(executable: duExecutable,
+    private nonisolated func measureScanBatch(_ urls: [URL], timeout: TimeInterval) async -> [String: UInt64] {
+        guard let data = await DirectorySizeProbe.capture(executable: duExecutable,
             arguments: ["-sk"] + urls.map(\.path), timeout: timeout) else { return [:] }
-        let sizes = Self.parseDUSizes(response.data, urls: urls)
-        if response.succeeded { return sizes }
-        guard retainPeers, urls.count > 1, response.exited, !response.timedOut,
-              !response.diagnostics.isEmpty, response.diagnostics.count < 65_536 else { return [:] }
-
-        // BSD du attaches each traversal error to its path. If any diagnostic
-        // cannot be attributed to an operand, no row can be certified.
-        let paths = urls.map(\.path)
-        var uncertain: Set<String> = []
-        for line in String(decoding: response.diagnostics, as: UTF8.self).split(separator: "\n") {
-            let roots = paths.filter { line.hasPrefix("du: " + $0 + "/") || line.hasPrefix("du: " + $0 + ": ") }
-            guard !roots.isEmpty else { return [:] }
-            uncertain.formUnion(roots)
-        }
-        // A failed root can consume the blocks shared with a readable peer.
-        // Retry zero-sized peers alone so they can account for those links.
-        return sizes.filter { $0.value > 0 && !uncertain.contains($0.key) }
+        return Self.parseDUSizes(data, urls: urls)
     }
 
     /// Keep each batch below ARG_MAX. BSD du prints literal paths and cannot

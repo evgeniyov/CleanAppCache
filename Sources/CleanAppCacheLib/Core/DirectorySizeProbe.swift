@@ -71,7 +71,6 @@ enum DirectorySizeProbe {
         let succeeded: Bool
         let diagnostics: Data
         let timedOut: Bool
-        let exited: Bool
     }
 
     /// A failed traversal can still return lower bounds for readable roots.
@@ -107,8 +106,7 @@ enum DirectorySizeProbe {
                 owner.finish()
                 guard !owner.isCancelled || owner.timedOut else { return nil }
                 return Response(data: data, succeeded: !owner.timedOut && process.terminationStatus == 0,
-                                diagnostics: diagnostics.data, timedOut: owner.timedOut,
-                                exited: process.terminationReason == .exit)
+                                diagnostics: diagnostics.data, timedOut: owner.timedOut)
             }.value
         } onCancel: {
             owner.cancel()

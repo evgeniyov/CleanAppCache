@@ -119,7 +119,7 @@ final class ScanSizingTests: XCTestCase {
         XCTAssertEqual(grouped.bytes, measured.bytes)
     }
 
-    func testFailedSmartCleanupBatchRetriesOnlyItsUnreadableRoot() async throws {
+    func testFailedSmartCleanupBatchStillListsReadableRoots() async throws {
         let unreadable = try folder("unreadable")
         try payload(in: unreadable)
         let blocked = try folder("unreadable/child")
@@ -130,9 +130,7 @@ final class ScanSizingTests: XCTestCase {
             return url
         }
         let command = try executable("measuring-du", body: """
-            base="${0%/*}"
-            printf '%s\\n' "$#" >> "$base/calls"
-            /bin/chmod 000 "$base/unreadable/child"
+            /bin/chmod 000 "${0%/*}/unreadable/child"
             exec /usr/bin/du "$@"
             """)
         let scanner = CleanAppCacheLib.Scanner(duExecutable: command)
@@ -142,9 +140,6 @@ final class ScanSizingTests: XCTestCase {
         XCTAssertEqual(Set(result.items.map(\.url.path)), Set(readable.map(\.path)))
         XCTAssertTrue(result.items.allSatisfy { $0.size >= 8192 })
         XCTAssertEqual(result.skipped.counts[.unreadable], 1)
-        let calls = try String(contentsOf: root.appendingPathComponent("calls"), encoding: .utf8)
-        // One batch of nine, then one retry. Full fallback needs ten calls.
-        XCTAssertEqual(calls.split(separator: "\n"), ["10", "2"])
     }
 
     func testFailedSmartCleanupBatchRetriesZeroSizedHardLinkPeer() async throws {

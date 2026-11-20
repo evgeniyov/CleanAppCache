@@ -52,8 +52,6 @@ GitHub Release description (`v1.0.0` and `v1.0` both match `## 1.0`).
 - Developer measures build folders in parallel within one time limit and keeps
   the results it has when the limit is reached; a slow project no longer keeps
   the screen scanning for minutes.
-- Smart Cleanup re-measures only the folder that failed instead of every
-  folder of its batch.
 - Large Files stops searching once it has enough results and skips excluded
   folders without walking them, so it uses less memory on large disks.
 - Leftovers and Orphans no longer re-read every installed app for each file
