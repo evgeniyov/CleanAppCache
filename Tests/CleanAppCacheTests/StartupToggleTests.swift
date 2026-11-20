@@ -159,4 +159,38 @@ final class StartupToggleTests: XCTestCase {
         XCTAssertEqual(items.map(\.program), ["/Applications/Editor.app/", "/Applications/Tool.app"])
         XCTAssertTrue(items.allSatisfy { $0.scope == .loginItem })
     }
+
+    func testLoginItemRemovalUsesTheSelectedPathAndRequiresAUniqueMatch() async throws {
+        let rows = StartupManager.parseLoginItems("Editor\t/one/Editor.app\nEditor\t/two/Editor.app ")
+        XCTAssertEqual(rows.count, 2)
+        let selected = try XCTUnwrap(rows.last)
+        let removed = await StartupManager.removeLoginItem(selected) { _, arguments, _ in
+            XCTAssertEqual(arguments, ["/two/Editor.app "])
+            return .init(status: 0, stdout: "true", stderr: "", timedOut: false)
+        }
+        XCTAssertTrue(removed)
+        let ambiguous = await StartupManager.removeLoginItem(selected) { _, _, _ in
+            .init(status: 0, stdout: "false", stderr: "", timedOut: false)
+        }
+        XCTAssertFalse(ambiguous)
+
+        let noPath = try XCTUnwrap(StartupManager.parseLoginItems("Editor\t").first)
+        let refused = await StartupManager.removeLoginItem(noPath) { _, _, _ in
+            XCTFail("A row without a path must never reach System Events")
+            return .init(status: 0, stdout: "true", stderr: "", timedOut: false)
+        }
+        XCTAssertFalse(refused)
+    }
+
+    @MainActor
+    func testDisableBatchOwnsTheViewModelBeforeItSuspends() throws {
+        let target = try agent(writePlist: false)
+        let vm = StartupViewModel()
+        vm.turnOff([target])
+        XCTAssertTrue(vm.isTurningOff)
+        vm.scan()
+        XCTAssertFalse(vm.isScanning)
+        vm.turnOff([target])
+        XCTAssertTrue(vm.isTurningOff)
+    }
 }

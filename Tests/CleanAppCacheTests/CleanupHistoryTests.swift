@@ -146,6 +146,30 @@ final class CleanupHistoryTests: XCTestCase {
         XCTAssertEqual(CleanupHistory(directory: dir).records.count, 1, "the change is saved")
     }
 
+    func testPartialUndoKeepsZeroByteMoveInHistoryUntilItIsRestored() throws {
+        let history = CleanupHistory(directory: dir)
+        let original = dir.appendingPathComponent("regular")
+        let zeroOriginal = dir.appendingPathComponent("empty")
+        let trashed = dir.appendingPathComponent("trashed-regular")
+        let zeroTrashed = dir.appendingPathComponent("trashed-empty")
+        try Data("regular".utf8).write(to: trashed)
+        try Data().write(to: zeroTrashed)
+        try Data("collision".utf8).write(to: zeroOriginal)
+        let zero = TrashService.Trashed(original: zeroOriginal, trashed: zeroTrashed)
+        let regular = TrashService.Trashed(original: original, trashed: trashed, movedBytes: 4096)
+        let id = history.log(.leftovers, items: 2, trashedBytes: 4096)
+
+        XCTAssertEqual(TrashService.restore([regular, zero], recordingUndoOf: id, history: history), 1)
+        let remaining = try XCTUnwrap(CleanupHistory(directory: dir).records.first)
+        XCTAssertEqual(remaining.itemCount, 1)
+        XCTAssertEqual(remaining.trashedBytes, 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: zeroTrashed.path))
+
+        try FileManager.default.removeItem(at: zeroOriginal)
+        XCTAssertEqual(TrashService.restore([zero], recordingUndoOf: id, history: history), 1)
+        XCTAssertTrue(CleanupHistory(directory: dir).records.isEmpty)
+    }
+
     func testOneUnreadableRecordCostsOnlyItself() throws {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let json = """

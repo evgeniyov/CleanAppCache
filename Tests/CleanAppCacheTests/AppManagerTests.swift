@@ -1,6 +1,21 @@
 import XCTest
 @testable import CleanAppCacheLib
 
+func writeTestApplication(_ url: URL, id: String? = "com.example.fixture", name: String? = nil) throws {
+    let contents = url.appendingPathComponent("Contents")
+    let macOS = contents.appendingPathComponent("MacOS")
+    try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
+    let executable = macOS.appendingPathComponent("fixture")
+    if !FileManager.default.fileExists(atPath: executable.path) {
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: executable)
+    }
+    var info = ["CFBundleExecutable": "fixture", "CFBundlePackageType": "APPL"]
+    info["CFBundleIdentifier"] = id
+    info["CFBundleName"] = name
+    try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+        .write(to: contents.appendingPathComponent("Info.plist"))
+}
+
 final class AppManagerTests: XCTestCase {
 
     func testInstalledAppTotalSize() {
@@ -60,8 +75,7 @@ final class AppManagerTests: XCTestCase {
     }
 
     private func makeBundle(_ url: URL) throws {
-        try FileManager.default.createDirectory(
-            at: url.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try writeTestApplication(url)
     }
 
     func testAdminDeletionTargetAcceptsRealBundleInsideAllowedRoot() throws {
@@ -151,7 +165,7 @@ final class AppManagerTests: XCTestCase {
         let base = fm.temporaryDirectory.appendingPathComponent("uninstall_order_\(UUID().uuidString)")
         addTeardownBlock { try? FileManager.default.removeItem(at: base) }
         let bundle = base.appendingPathComponent(bundlePath)
-        try fm.createDirectory(at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try writeTestApplication(bundle)
         let leftover = base.appendingPathComponent("support/com.example.fixture")
         try fm.createDirectory(at: leftover, withIntermediateDirectories: true)
         try Data(count: 4096).write(to: leftover.appendingPathComponent("state.bin"))
@@ -202,6 +216,40 @@ final class AppManagerTests: XCTestCase {
         XCTAssertEqual(results[0].associatedRemoved, 0)
         XCTAssertTrue(FileManager.default.fileExists(atPath: moved.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path))
+    }
+
+    func testUninstallKeepsDirectoryDisguisedAsAppAndItsSelectedData() async throws {
+        let s = try makeScratch()
+        let folder = s.allowed.appendingPathComponent("Archive.app")
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        let data = s.base.appendingPathComponent("Archive")
+        try Data("user data".utf8).write(to: data)
+        let candidate = InstalledApp(url: folder, name: "Archive", bundleIdentifier: nil, version: nil,
+                                     size: 0, associatedFiles: [AssociatedFile(url: data, type: .support, size: 0)],
+                                     installDate: nil)
+        XCTAssertNil(AppManager.uninstallableBundleInfo(at: folder))
+        XCTAssertNil(DeletionService.administratorBundleTarget(for: folder, allowedRoots: [s.allowedRoot]))
+        let results = await AppManager.shared.uninstall([candidate], adminPrompt: "unused", bundleIsRunning: { _ in false })
+        XCTAssertTrue(results[0].bundleChanged)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertEqual(try Data(contentsOf: data), Data("user data".utf8))
+    }
+
+    func testUninstallKeepsNameMatchedDataWhenAnotherApplicationClaimsTheName() async throws {
+        let s = try makeScratch()
+        let bundle = s.allowed.appendingPathComponent("Archive.app")
+        try writeTestApplication(bundle, id: nil)
+        try writeTestApplication(s.allowed.appendingPathComponent("Other.app"), name: "Archive")
+        let data = s.base.appendingPathComponent("Archive")
+        try Data("shared data".utf8).write(to: data)
+        let candidate = InstalledApp(url: bundle, name: "Archive", bundleIdentifier: nil, version: nil,
+                                     size: 0, associatedFiles: [AssociatedFile(url: data, type: .support, size: 0)],
+                                     installDate: nil)
+        let results = await AppManager.shared.uninstall([candidate], adminPrompt: "unused",
+                                                       applicationRoots: [s.allowed], bundleIsRunning: { _ in false })
+        XCTAssertTrue(results[0].bundleRemoved)
+        XCTAssertTrue(results[0].sharedDataKept)
+        XCTAssertEqual(try Data(contentsOf: data), Data("shared data".utf8))
     }
 
     // MARK: - Associated-file matching

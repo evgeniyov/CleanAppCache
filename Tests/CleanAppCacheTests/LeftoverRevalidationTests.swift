@@ -25,8 +25,8 @@ final class LeftoverRevalidationTests: XCTestCase {
         _ group: LeftoverGroup, inventory: AppManager.InstalledInventory? = nil,
         installed: Set<String> = []
     ) -> @Sendable (URL) -> Bool {
-        LeftoversManager.removalValidator(for: [group], inventory: inventory ?? empty, baseline: .init(),
-            readInstallationState: { .init() }, applicationExists: { installed.contains($0) })
+        LeftoversManager.removalValidator(for: [group], inventory: inventory ?? empty,
+            installationIsCurrent: { true }, applicationExists: { installed.contains($0) })
     }
 
     func testUnchangedLeftoverMovesThroughValidatedTrashBoundary() throws {
@@ -114,8 +114,9 @@ final class LeftoverRevalidationTests: XCTestCase {
         let applications = root.appendingPathComponent("Applications")
         try FileManager.default.createDirectory(at: applications, withIntermediateDirectories: true)
         let baseline = try XCTUnwrap(OrphanScanner.installationState(roots: [applications], runningBundleIDs: []))
-        let validation = LeftoversManager.removalValidator(for: [first, later], inventory: empty, baseline: baseline,
-            readInstallationState: { OrphanScanner.installationState(roots: [applications], runningBundleIDs: []) },
+        let generation = try XCTUnwrap(OrphanScanner.InstallationGeneration(state: baseline))
+        let validation = LeftoversManager.removalValidator(for: [first, later], inventory: empty,
+            installationIsCurrent: { generation.isCurrent() },
             applicationExists: { _ in false })
         let result = TrashService.trash([first.files[0].url, later.files[0].url],
             validationObstacle: .changedSinceScan, validation: validation, mover: { url in
@@ -136,11 +137,8 @@ final class LeftoverRevalidationTests: XCTestCase {
 
     func testUnreadableOrMissingInstallationBaselineFailsClosed() throws {
         let chosen = try group()
-        let missing = LeftoversManager.removalValidator(for: [chosen], inventory: empty, baseline: nil,
-            readInstallationState: { .init() }, applicationExists: { _ in false })
+        let missing = LeftoversManager.removalValidator(for: [chosen], inventory: empty,
+            installationIsCurrent: { false }, applicationExists: { _ in false })
         XCTAssertFalse(missing(chosen.files[0].url))
-        let unreadable = LeftoversManager.removalValidator(for: [chosen], inventory: empty, baseline: .init(),
-            readInstallationState: { nil }, applicationExists: { _ in false })
-        XCTAssertFalse(unreadable(chosen.files[0].url))
     }
 }

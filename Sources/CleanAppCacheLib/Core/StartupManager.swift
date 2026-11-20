@@ -169,9 +169,12 @@ public actor StartupManager {
                     try
                         set p to (path of li) as text
                     end try
-                    set output to output & n & tab & p & linefeed
+                    if n does not contain tab and n does not contain return and n does not contain linefeed and ¬
+                       p does not contain tab and p does not contain return and p does not contain linefeed then
+                        set output to output & n & tab & p & linefeed
+                    end if
                 end repeat
-                return output
+                return output & "."
             end tell
         end run
         """
@@ -184,15 +187,16 @@ public actor StartupManager {
             if !denied { Log.warn("Login items AppleScript failed: \(output.stderr)") }
             return ([], denied)
         }
-        return (parseLoginItems(output.stdout), false)
+        guard output.stdout.hasSuffix(".") else { return ([], false) }
+        return (parseLoginItems(String(output.stdout.dropLast())), false)
     }
 
     /// One `name<TAB>path` line per login item, as the script above prints them.
     static func parseLoginItems(_ text: String) -> [StartupItem] {
         var items: [StartupItem] = []
-        for line in text.split(whereSeparator: { $0.isNewline }) {
+        for line in text.split(whereSeparator: { $0 == "\n" || $0 == "\r" || $0 == "\r\n" }) {
             let parts = line.components(separatedBy: "\t")
-            guard let name = parts.first else { continue }
+            guard parts.count <= 2, let name = parts.first else { continue }
             let path = parts.count > 1 ? parts[1] : ""
             let trimmedName = name.trimmingCharacters(in: .whitespaces)
             if trimmedName.isEmpty && path.isEmpty { continue }
@@ -209,21 +213,40 @@ public actor StartupManager {
         return items
     }
 
-    /// Removes a login item by its System Events name. Returns true on success.
-    /// The name travels as `argv`, so no quoting can turn it into script code.
-    static func removeLoginItem(named name: String) async -> Bool {
-        let source = """
+    // System Events can return multiple rows for one path. Delete only a
+    // unique, still-matching row, and preserve paths with spaces verbatim.
+    static let removeLoginItemScript = """
         on run argv
-            tell application "System Events" to delete (every login item whose name is (item 1 of argv))
+            set selectedPathID to id of (item 1 of argv)
+            tell application "System Events"
+                set currentPaths to path of every login item
+                set matchedIndex to 0
+                repeat with i from 1 to (count of currentPaths)
+                    if (id of ((item i of currentPaths) as text)) is selectedPathID then
+                        if matchedIndex is not 0 then return false
+                        set matchedIndex to i as integer
+                    end if
+                end repeat
+                if matchedIndex is 0 then return false
+                if (id of ((path of login item matchedIndex) as text)) is not selectedPathID then return false
+                delete login item matchedIndex
+                return true
+            end tell
         end run
         """
-        return await Task.detached(priority: .userInitiated) {
-            AppleScriptRunner.run(source, arguments: [name], timeout: AppleScriptRunner.interactiveTimeout)
-        }.value.succeeded
-    }
 
     public func removeLoginItem(_ item: StartupItem) async -> Bool {
-        await Self.removeLoginItem(named: item.label)
+        await Self.removeLoginItem(item) { AppleScriptRunner.run($0, arguments: $1, timeout: $2) }
+    }
+
+    nonisolated static func removeLoginItem(
+        _ item: StartupItem, run: @escaping @Sendable (String, [String], TimeInterval) -> AppleScriptRunner.Output
+    ) async -> Bool {
+        guard item.scope == .loginItem, item.program.hasPrefix("/"), item.program != "/" else { return false }
+        let output = await Task.detached(priority: .userInitiated) {
+            run(removeLoginItemScript, [item.program], AppleScriptRunner.interactiveTimeout)
+        }.value
+        return output.succeeded && output.stdout == "true"
     }
 
     // MARK: Enable / Disable

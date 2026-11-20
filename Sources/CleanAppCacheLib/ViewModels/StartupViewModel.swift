@@ -6,6 +6,7 @@ import AppKit
 public final class StartupViewModel: ObservableObject {
     @Published public var items: [StartupItem] = []
     @Published public var isScanning = false
+    @Published public private(set) var isTurningOff = false
     @Published public var hasScanned = false
     @Published public var searchText = ""
     /// True when login items couldn't be read (Automation permission denied).
@@ -24,7 +25,7 @@ public final class StartupViewModel: ObservableObject {
     }
 
     public func scan() {
-        guard !isScanning else { return }
+        guard !isScanning, !isTurningOff else { return }
         isScanning = true
         hasScanned = true
         Task {
@@ -57,10 +58,13 @@ public final class StartupViewModel: ObservableObject {
     /// - daemons are disabled in the system domain as root, after one
     ///   administrator password for all of them.
     public func turnOff(_ chosen: [StartupItem]) {
+        guard !isScanning, !isTurningOff else { return }
         let targets = Self.actionable(chosen)
         guard !targets.isEmpty else { return }
+        isTurningOff = true
         let loc = Localizer.shared
         Task {
+            defer { isTurningOff = false }
             var done: [StartupItem] = []
             var failed: [StartupItem] = []
 

@@ -85,11 +85,14 @@ final class OrphanRevalidationTests: XCTestCase {
         let item = try XCTUnwrap(OrphanScanner.classifyHelper(url: helper, inventory: empty,
             applicationExists: { _ in false }, jobDirectories: [root]))
         XCTAssertTrue(valid(item))
-        let plist: [String: Any] = ["Program": helper.path, "AssociatedBundleIdentifiers": ["org.owner.product"]]
+        let alias = root.appendingPathComponent("helper-alias")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: helper)
+        let plist: [String: Any] = ["Label": "org.owner.product", "ProgramArguments": [alias.path]]
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
             .write(to: root.appendingPathComponent("new.plist"))
-        XCTAssertFalse(valid(item, installed: ["org.owner.product"]))
-        XCTAssertFalse(valid(item, inventory: .init(bundleIDs: ["org.owner.product"], names: [], vendors: [])))
+        XCTAssertFalse(valid(item))
+        XCTAssertNil(OrphanScanner.classifyHelper(url: helper, inventory: empty,
+            applicationExists: { _ in false }, jobDirectories: [root]))
     }
 
     func testNoSnapshotFailsClosed() throws {
@@ -181,8 +184,9 @@ final class OrphanRevalidationTests: XCTestCase {
         let item = try XCTUnwrap(OrphanScanner.classifyHelper(url: helper, inventory: empty,
             applicationExists: { _ in false }, jobDirectories: [root]))
         let baseline = try XCTUnwrap(OrphanScanner.installationState(roots: [apps], runningBundleIDs: []))
-        let validator = OrphanScanner.removalValidator(for: [item], inventory: empty, baseline: baseline,
-            readInstallationState: { OrphanScanner.installationState(roots: [apps], runningBundleIDs: []) },
+        let generation = try XCTUnwrap(OrphanScanner.InstallationGeneration(state: baseline))
+        let validator = OrphanScanner.removalValidator(for: [item], inventory: empty,
+            installationIsCurrent: { generation.isCurrent() },
             applicationExists: { _ in false }, jobDirectories: [root])
         XCTAssertTrue(validator(helper))
         let earlier = root.appendingPathComponent("earlier")
@@ -211,8 +215,20 @@ final class OrphanRevalidationTests: XCTestCase {
     func testUnreadableInstallationStateFailsClosed() throws {
         let item = try job()
         let validator = OrphanScanner.removalValidator(for: [item], inventory: empty,
-            baseline: .init(), readInstallationState: { nil }, applicationExists: { _ in false }, jobDirectories: [root])
+            installationIsCurrent: { false }, applicationExists: { _ in false }, jobDirectories: [root])
         XCTAssertFalse(validator(item.url))
+    }
+
+    func testInstallationGenerationInvalidatesOnAnInPlaceInfoPlistChange() throws {
+        let apps = root.appendingPathComponent("Applications")
+        let bundle = apps.appendingPathComponent("Editor.app")
+        try writeTestApplication(bundle)
+        let baseline = try XCTUnwrap(OrphanScanner.installationState(roots: [apps], runningBundleIDs: []))
+        let generation = try XCTUnwrap(OrphanScanner.InstallationGeneration(state: baseline))
+        XCTAssertTrue(generation.isCurrent())
+        try writeTestApplication(bundle, id: "com.example.changed")
+        XCTAssertFalse(generation.isCurrent())
+        XCTAssertFalse(generation.isCurrent())
     }
 
     private func permissionFailure(_ url: URL) -> TrashService.Result {

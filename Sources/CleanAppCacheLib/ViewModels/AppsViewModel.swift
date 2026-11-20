@@ -24,6 +24,8 @@ public final class AppsViewModel: ObservableObject {
     @Published public var hasScanned = false
 
     private let appManager = AppManager.shared
+    typealias ScanProgress = @Sendable (Int, Int, String) -> Void
+    private let findApps: @Sendable (@escaping ScanProgress) async -> [InstalledApp]
 
     public var filteredApps: [InstalledApp] {
         var result = searchText.isEmpty
@@ -38,7 +40,13 @@ public final class AppsViewModel: ObservableObject {
         return result
     }
 
-    public init() {}
+    public convenience init() {
+        self.init(findApps: { await AppManager.shared.findInstalledApps(progress: $0) })
+    }
+
+    init(findApps: @escaping @Sendable (@escaping ScanProgress) async -> [InstalledApp]) {
+        self.findApps = findApps
+    }
 
     /// Selects the app in Finder (opens its containing folder, highlighted).
     public func revealInFinder(_ app: InstalledApp) {
@@ -56,21 +64,25 @@ public final class AppsViewModel: ObservableObject {
     /// that lands after a newer scan started is dropped instead of replacing
     /// the newer list (and silently clearing the selection made on it).
     private var scanTask: Task<Void, Never>?
+    private var scanGeneration = UUID()
 
     /// Starts loading the app list (used by the Scan / Rescan button).
     public func loadApps() {
         scanTask?.cancel()
+        let generation = UUID()
+        scanGeneration = generation
         isLoading = true
         hasScanned = true
         loadProgress = 0
 
-        scanTask = Task { [weak self, appManager] in
-            let result = await appManager.findInstalledApps(progress: { [weak self] current, total, _ in
+        scanTask = Task { [weak self, findApps] in
+            let result = await findApps { [weak self] current, total, _ in
                 Task { @MainActor [weak self] in
-                    self?.loadProgress = Double(current) / Double(max(total, 1))
+                    guard let self, self.scanGeneration == generation, self.isLoading else { return }
+                    self.loadProgress = max(self.loadProgress, Double(current) / Double(max(total, 1)))
                 }
-            })
-            guard let self, !Task.isCancelled else { return }
+            }
+            guard let self, !Task.isCancelled, self.scanGeneration == generation else { return }
             self.apps = result
             // Every InstalledApp gets a fresh UUID per scan, so a surviving
             // selection matches nothing — it kept a phantom bottom bar up,
@@ -82,10 +94,10 @@ public final class AppsViewModel: ObservableObject {
         }
     }
 
-    /// Stops the scan. The enumeration itself runs to its end inside
-    /// `AppManager`, but its result is discarded.
+    /// Discards callbacks from the canceled scan as its in-flight work drains.
     public func cancelScan() {
         scanTask?.cancel()
+        scanGeneration = UUID()
         scanTask = nil
         isLoading = false
     }

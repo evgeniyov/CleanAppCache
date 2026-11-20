@@ -5,21 +5,19 @@ final class UninstallIdentityTests: XCTestCase {
     private let fm = FileManager.default
 
     private func scratch() throws -> URL {
-        let root = fm.temporaryDirectory.appendingPathComponent("uninstall_identity_\(UUID().uuidString)")
+        let buildDirectory = ProcessInfo.processInfo.environment["BUILD_TMP_DIR"].map { URL(fileURLWithPath: $0) }
+        let root = (buildDirectory ?? fm.temporaryDirectory).appendingPathComponent("uninstall_identity_\(UUID().uuidString)")
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         return root
     }
 
     private func writeBundle(_ url: URL, id: String = "com.cacfixture.editor") throws {
-        try fm.createDirectory(at: url.appendingPathComponent("Contents"), withIntermediateDirectories: true)
-        let data = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": id],
-                                                       format: .xml, options: 0)
-        try data.write(to: url.appendingPathComponent("Contents/Info.plist"))
+        try writeTestApplication(url, id: id)
     }
 
-    private func fixture(_ root: URL) throws -> InstalledApp {
-        let bundle = root.appendingPathComponent("Applications/Editor.app")
+    private func fixture(_ root: URL, bundleName: String = "Editor.app") throws -> InstalledApp {
+        let bundle = root.appendingPathComponent("Applications").appendingPathComponent(bundleName)
         try writeBundle(bundle)
         let data = root.appendingPathComponent("Library/Application Support/com.cacfixture.editor")
         try fm.createDirectory(at: data, withIntermediateDirectories: true)
@@ -47,10 +45,13 @@ final class UninstallIdentityTests: XCTestCase {
 
     /// Executes only the production command's scratch targets, as the test user, without AppleScript.
     private func admin(_ app: InstalledApp, root: URL, beforeRun: () throws -> Void = {},
-                       cancel: Bool = false, missingIdentities: Bool = false) throws -> DeletionService.AdministratorResult {
-        let expected = missingIdentities ? [:] : try identities(app)
+                       cancel: Bool = false, missingIdentities: Bool = false, followedBy late: URL? = nil,
+                       checkRunning: Bool = false) throws -> DeletionService.AdministratorResult {
+        var expected = missingIdentities ? [:] : try identities(app)
+        if let late { expected[late] = RemovalIdentity(at: late) }
+        let groups = [[app.url] + app.associatedFiles.map(\.url)] + (late.map { [[$0]] } ?? [])
         return DeletionService.deleteAsAdministrator(
-            [[app.url] + app.associatedFiles.map(\.url)], prompt: "unused", identities: expected,
+            groups, prompt: "unused", identities: expected, appBundles: checkRunning ? [app.url] : [],
             targetResolver: { url in
                 url.path.hasPrefix(root.path + "/") ? url : nil
             }, runner: { command, _ in
@@ -69,13 +70,60 @@ final class UninstallIdentityTests: XCTestCase {
                     let bytes = output.fileHandleForReading.readDataToEndOfFile()
                     task.waitUntilExit()
                     return AppleScriptRunner.Output(status: task.terminationStatus,
-                                                    stdout: String(decoding: bytes, as: UTF8.self),
+                                                    stdout: task.terminationStatus == 0 ? String(decoding: bytes, as: UTF8.self) : "",
                                                     stderr: "", timedOut: false)
                 } catch {
                     XCTFail("scratch command failed: \(error)")
                     return AppleScriptRunner.Output(status: 1, stdout: "", stderr: "fixture failed", timedOut: false)
                 }
             })
+    }
+
+    func testLateAdministratorFailurePreservesEarlierReceipts() throws {
+        let root = try scratch()
+        let app = try fixture(root)
+        let late = root.appendingPathComponent("Late")
+        try Data("original".utf8).write(to: late)
+        let result = try admin(app, root: root, beforeRun: {
+            try self.fm.moveItem(at: late, to: root.appendingPathComponent("Held"))
+            try Data("replacement".utf8).write(to: late)
+        }, followedBy: late)
+        XCTAssertEqual(result.outcome, .completed)
+        XCTAssertEqual(result.removed, [app.url] + app.associatedFiles.map(\.url))
+        XCTAssertEqual(result.failed, [late])
+        XCTAssertEqual(result.obstacles[late], .changedSinceScan)
+        XCTAssertEqual(try Data(contentsOf: late), Data("replacement".utf8))
+    }
+
+    func testAdministratorRechecksBundleActivityAfterAuthentication() throws {
+        let root = try scratch()
+        let physical = root.appendingPathComponent("Contents")
+        try fm.createDirectory(at: physical, withIntermediateDirectories: true)
+        let alias = root.appendingPathComponent("Alias")
+        try fm.createSymbolicLink(at: alias, withDestinationURL: physical)
+        let app = try fixture(alias, bundleName: "Фото с пробелом.app")
+        let sleeper = Process()
+        sleeper.executableURL = app.url.appendingPathComponent("Contents/MacOS/fixture")
+        sleeper.arguments = ["30"]
+        defer {
+            if sleeper.isRunning { sleeper.terminate(); sleeper.waitUntilExit() }
+        }
+        let result = try admin(app, root: root, beforeRun: {
+            try sleeper.run()
+        }, checkRunning: true)
+        XCTAssertEqual(result.running, [app.url])
+        XCTAssertTrue(result.removed.isEmpty)
+        XCTAssertTrue(fm.fileExists(atPath: app.url.path))
+        XCTAssertTrue(fm.fileExists(atPath: app.associatedFiles[0].url.path))
+    }
+
+    func testDirectUninstallRechecksRunningStateAndLeavesAssociatedData() async throws {
+        let root = try scratch()
+        let app = try fixture(root)
+        let results = await AppManager.shared.uninstall([app], adminPrompt: "unused", bundleIsRunning: { _ in true })
+        XCTAssertTrue(results[0].stillRunning)
+        XCTAssertFalse(results[0].bundleRemoved)
+        XCTAssertTrue(fm.fileExists(atPath: app.associatedFiles[0].url.path))
     }
 
     func testDirectUninstallRefusesReplacementBundleAndKeepsData() async throws {
