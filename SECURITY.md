@@ -5,8 +5,8 @@ rights, so a bug in it can destroy data. Please report problems privately.
 
 ## Supported versions
 
-There are no published releases yet. Only the latest commit on `master` is
-supported. Once releases exist, fixes will go into the latest release only.
+CleanAppCache 0.9 is a public beta available on the [GitHub Releases page](https://github.com/evgeniyov/CleanAppCache/releases/latest).
+Security fixes land on `master` and ship in the latest beta release.
 
 ## How to report
 

@@ -11,6 +11,7 @@
 #   • the binary is universal — LSMinimumSystemVersion 13.0 advertises Intel
 #   • Info.plist carries the TCC usage descriptions, or the folder prompts come
 #     up blank and some configurations refuse access outright
+#   • the SwiftPM resource bundle contains the English and Russian catalogs
 #
 # Usage:  ./Scripts/check_bundle.sh [path/to/CleanAppCache.app]
 #
@@ -56,5 +57,21 @@ for key in NSAppleEventsUsageDescription NSDesktopFolderUsageDescription \
         || { echo "::error::Info.plist missing $key"; missing=1; fail=1; }
 done
 [ "$missing" -eq 0 ] && echo "   ✓ usage descriptions"
+
+resources="$APP/Contents/Resources/CleanAppCache_CleanAppCacheLib.bundle"
+if [ -d "$resources/Contents/Resources" ]; then
+    resources="$resources/Contents/Resources"
+fi
+invalid=0
+for lang in en ru; do
+    for catalog in Localizable.strings Localizable.stringsdict; do
+        path="$resources/$lang.lproj/$catalog"
+        if ! plutil -lint -- "$path" >/dev/null; then
+            echo "::error::missing or invalid localization catalog: $path"
+            invalid=1; fail=1
+        fi
+    done
+done
+[ "$invalid" -eq 0 ] && echo "   ✓ English and Russian localization catalogs"
 
 exit "$fail"

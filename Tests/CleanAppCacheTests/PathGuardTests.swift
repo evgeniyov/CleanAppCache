@@ -287,27 +287,33 @@ final class PathGuardTests: XCTestCase {
 
     // MARK: - Enforcement at the delete sites
 
-    func testDeletionServiceRefusesProtectedPathsWithoutTouchingDisk() {
-        let result = DeletionService.delete([
-            URL(fileURLWithPath: "/"),
-            home,
-            home.appendingPathComponent("Library")
-        ])
-        XCTAssertTrue(result.deleted.isEmpty)
-        XCTAssertTrue(result.failed.isEmpty, "blocked paths must not be reported as failures")
-        XCTAssertEqual(result.blocked.count, 3)
-        XCTAssertEqual(result.freedBytes, 0)
-        // And the paths are, of course, still there.
-        XCTAssertTrue(FileManager.default.fileExists(atPath: home.path))
+    private func protectedFixture() throws -> URL {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("pathguard-\(UUID().uuidString)")
+        let repository = root.appendingPathComponent(".git", isDirectory: true)
+        try fm.createDirectory(at: repository, withIntermediateDirectories: true)
+        addTeardownBlock { try fm.removeItem(at: root) }
+        let fixture = repository.appendingPathComponent("config")
+        try Data("fixture".utf8).write(to: fixture)
+        return fixture
     }
 
-    func testTrashServiceRefusesProtectedPaths() {
-        let result = TrashService.trash([home.appendingPathComponent("Documents")])
+    func testDeletionServiceRefusesProtectedPathsWithoutTouchingDisk() throws {
+        let fixture = try protectedFixture()
+        let result = DeletionService.delete([fixture])
+        XCTAssertTrue(result.deleted.isEmpty)
+        XCTAssertTrue(result.failed.isEmpty, "blocked paths must not be reported as failures")
+        XCTAssertEqual(result.blocked, [fixture])
+        XCTAssertEqual(result.freedBytes, 0)
+        XCTAssertEqual(try Data(contentsOf: fixture), Data("fixture".utf8))
+    }
+
+    func testTrashServiceRefusesProtectedPaths() throws {
+        let fixture = try protectedFixture()
+        let result = TrashService.trash([fixture])
         XCTAssertEqual(result.count, 0)
-        XCTAssertEqual(result.blocked.count, 1)
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: home.appendingPathComponent("Documents").path
-        ))
+        XCTAssertEqual(result.blocked, [fixture])
+        XCTAssertEqual(try Data(contentsOf: fixture), Data("fixture".utf8))
     }
 
     // MARK: - Component-boundary matching

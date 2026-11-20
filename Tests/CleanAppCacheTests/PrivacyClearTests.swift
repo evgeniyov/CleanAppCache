@@ -83,12 +83,12 @@ final class PrivacyClearTests: XCTestCase {
 
     func testProtectedLocationIsBlockedAndCountsAsFailed() async throws {
         let history = try file("Default/History")
-        let home = fm.homeDirectoryForCurrentUser
-        let target = entry(history: [history], siteData: [home])
+        let protected = try file(".git/config")
+        let target = entry(history: [history], siteData: [protected])
 
         let result = await PrivacyManager.shared.clearHistory(for: target)
 
-        XCTAssertTrue(fm.fileExists(atPath: home.path))
+        XCTAssertEqual(try Data(contentsOf: protected), Data(repeating: 7, count: 4096))
         XCTAssertEqual(result.failed, 1)
         XCTAssertFalse(fm.fileExists(atPath: history.path), "the unprotected path is still cleared")
         XCTAssertEqual(result.cleared, 1)

@@ -9,6 +9,7 @@
 #      `Localizer.s()` returns the raw key on a miss, so a missing key never
 #      errors — it renders as "nav.storage" in the interface, and nothing
 #      else catches it before a release.
+#      The plural catalogs must parse and cover every literal Fmt.plural key.
 #   2. The palette is closed: `Color(hex:)` is spelled only in Design/Theme.swift.
 #   3. `Fmt` is the only size formatter: `ByteCountFormatter` follows the
 #      system locale, not the in-app language switch.
@@ -65,11 +66,41 @@ spec "$R/ru.lproj/Localizable.strings" > "$T/ru.spec"
 d=$(diff "$T/en.spec" "$T/ru.spec" || true)
 [ -n "$d" ] && { echo "::error::format specifiers differ between en and ru:"; echo "$d"; fail=1; }
 
-# stringsdict: the same plural keys in both languages.
-plural_keys() { grep -oE '<key>[a-zA-Z.]+</key>' "$1" | grep '\.' | sort -u; }
-d=$(diff <(plural_keys "$R/en.lproj/Localizable.stringsdict") \
-         <(plural_keys "$R/ru.lproj/Localizable.stringsdict") || true)
-[ -n "$d" ] && { echo "::error::stringsdict keys differ:"; echo "$d"; fail=1; }
+# Parse property lists on both macOS and Linux, then compare top-level keys.
+python3 - "$R" <<'PY' || fail=1
+import plistlib
+import re
+import sys
+from pathlib import Path
+
+literal = re.compile(r'(?<![\w.])Fmt\.plural\s*\(\s*"([^"\\]+)"')
+used = set()
+for source in Path("Sources").rglob("*.swift"):
+    used.update(literal.findall(source.read_text(encoding="utf-8")))
+
+catalogs = {}
+failed = False
+for lang in ("en", "ru"):
+    path = Path(sys.argv[1]) / f"{lang}.lproj" / "Localizable.stringsdict"
+    try:
+        with path.open("rb") as stream:
+            catalog = plistlib.load(stream)
+        if not isinstance(catalog, dict):
+            raise ValueError("expected a dictionary")
+    except Exception as error:
+        print(f"::error::{path}: {error}")
+        failed = True
+        continue
+    catalogs[lang] = set(catalog)
+    for key in sorted(used - catalogs[lang]):
+        print(f"::error::{path}: missing plural key {key}")
+        failed = True
+
+if len(catalogs) == 2 and catalogs["en"] != catalogs["ru"]:
+    print(f"::error::stringsdict keys differ: {', '.join(sorted(catalogs['en'] ^ catalogs['ru']))}")
+    failed = True
+sys.exit(int(failed))
+PY
 
 echo "localization: en=$(wc -l < "$T/en.keys" | tr -d ' ') ru=$(wc -l < "$T/ru.keys" | tr -d ' ') used-in-code=$(wc -l < "$T/used.keys" | tr -d ' ')"
 

@@ -21,11 +21,20 @@ final class UvCacheCleanerTests: XCTestCase {
     }
 
     private func executable() throws -> URL {
-        if ProcessInfo.processInfo.environment["CAC_TEST_NO_UV"] == "1" {
+        let testEnvironment = ProcessInfo.processInfo.environment
+        if let path = testEnvironment["CAC_TEST_UV"], !path.isEmpty {
+            let installed = FileManager.default.isExecutableFile(atPath: path)
+            return try XCTUnwrap(installed ? URL(fileURLWithPath: path) : nil,
+                                 "CAC_TEST_UV must point to an executable uv")
+        }
+        if testEnvironment["GITHUB_ACTIONS"] == "true" {
+            return try XCTUnwrap(nil, "CI must set CAC_TEST_UV to the pinned uv executable")
+        }
+        if testEnvironment["CAC_TEST_NO_UV"] == "1" {
             throw XCTSkip("uv discovery is disabled by CAC_TEST_NO_UV")
         }
         guard let result = UvCacheCleaner.findExecutable(home: FileManager.default.homeDirectoryForCurrentUser,
-                                                        environment: ProcessInfo.processInfo.environment) else {
+                                                        environment: testEnvironment) else {
             throw XCTSkip("uv is required for the scratch-cache CLI integration tests")
         }
         return result

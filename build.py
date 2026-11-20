@@ -23,6 +23,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 APP_NAME = "CleanAppCache"
@@ -32,7 +33,6 @@ MIN_OS = "13.0"
 ROOT = Path(__file__).resolve().parent
 APP = ROOT / f"{APP_NAME}.app"
 DMG = ROOT / f"{APP_NAME}.dmg"
-DMG_TMP = ROOT / "_dmg_staging"
 # Where the build puts its products depends on the toolchain: SwiftPM's
 # native build system used .build/apple/Products/Release for multi-arch
 # builds, the Swift Build system (Xcode 27) uses .build/out/Products/Release.
@@ -148,10 +148,58 @@ def local_identity_exists() -> bool:
     return "CleanAppCache Local" in out
 
 
+def check_localizations(products: Path) -> None:
+    bundle = products / "CleanAppCache_CleanAppCacheLib.bundle"
+    # SwiftPM's native build emits a flat bundle, while Swift Build nests resources.
+    resources = bundle / "Contents/Resources"
+    if not resources.is_dir():
+        resources = bundle
+    for lang in ("en", "ru"):
+        for catalog in ("Localizable.strings", "Localizable.stringsdict"):
+            path = resources / f"{lang}.lproj" / catalog
+            if not path.is_file():
+                fail(f"Missing localization catalog: {path}")
+            run("plutil", "-lint", "--", str(path))
+
+
+def make_dmg(developer_id: str, notary_profile: str) -> None:
+    step("Creating DMG installer…")
+    # Stage on the destination filesystem so publication is a single rename.
+    with tempfile.TemporaryDirectory(prefix=".dmg-", dir=DMG.parent) as stage:
+        contents = Path(stage) / "contents"
+        contents.mkdir()
+        staged_dmg = Path(stage) / DMG.name
+        shutil.copytree(APP, contents / APP.name, symlinks=True)
+        (contents / "Applications").symlink_to("/Applications")
+        run("hdiutil", "create", "-volname", APP_NAME,
+            "-srcfolder", str(contents), "-format", "UDZO", str(staged_dmg))
+
+        if developer_id and notary_profile:
+            step("Signing DMG…")
+            # Notarization requires a secure timestamp on both the app and image.
+            run("codesign", "--timestamp", "--sign", developer_id, str(staged_dmg))
+            step("Submitting DMG to Apple notary service…")
+            # notarytool may exit 0 even when Apple rejects the submission.
+            submit_out = run("xcrun", "notarytool", "submit", str(staged_dmg),
+                             "--keychain-profile", notary_profile, "--wait", capture=True)
+            print(submit_out, file=sys.stderr)
+            if "status: Accepted" not in submit_out:
+                fail("Notarization not accepted — inspect it with:\n"
+                     f"  xcrun notarytool log <submission-id> "
+                     f"--keychain-profile {notary_profile}")
+            step("Stapling notarization ticket…")
+            run("xcrun", "stapler", "staple", str(staged_dmg))
+            print("   ✓ Notarized & stapled.")
+        elif developer_id:
+            print("   (export NOTARY_PROFILE to also notarize)")
+
+        staged_dmg.replace(DMG)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build CleanAppCache.app and CleanAppCache.dmg")
-    parser.add_argument("--version", default=os.environ.get("VERSION", "0.9.1"))
+    parser.add_argument("--version", default=os.environ.get("VERSION", "0.9.2"))
     parser.add_argument("--build-number",
                         default=os.environ.get("BUILD_NUMBER", ""))
     parser.add_argument("--developer-id",
@@ -186,6 +234,7 @@ def main() -> None:
                         [ROOT / "Package.swift", *(ROOT / "Sources").rglob("*") ] if f.is_file())
     if not binary.exists() or binary.stat().st_mtime < newest_source:
         fail(f"{binary} is older than the sources — refusing to package a stale binary.")
+    check_localizations(PRODUCTS)
 
     # 2. Assemble .app bundle ─────────────────────────────────────────────────
     step(f"Assembling {APP.name}…")
@@ -194,8 +243,7 @@ def main() -> None:
     (APP / "Contents/Resources").mkdir(parents=True)
     shutil.copy2(PRODUCTS / APP_NAME, APP / "Contents/MacOS" / APP_NAME)
 
-    # SwiftPM resource bundles (localizations, assets). Without them
-    # `Bundle.module` finds no strings and the UI shows raw keys.
+    # Bundle.module aborts when its SwiftPM resource bundle is absent.
     for bundle in sorted(PRODUCTS.glob("*.bundle")):
         shutil.copytree(bundle, APP / "Contents/Resources" / bundle.name)
 
@@ -232,43 +280,10 @@ def main() -> None:
               "   (ad-hoc signed — permissions reset on each rebuild; "
               "set SIGN_IDENTITY to keep them)")
 
-    # 4. Package into DMG (drag-and-drop installer) ───────────────────────────
-    step("Creating DMG installer…")
-    shutil.rmtree(DMG_TMP, ignore_errors=True)
-    DMG.unlink(missing_ok=True)
-    DMG_TMP.mkdir()
-    shutil.copytree(APP, DMG_TMP / APP.name, symlinks=True)
-    (DMG_TMP / "Applications").symlink_to("/Applications")
-    run("hdiutil", "create", "-volname", APP_NAME,
-        "-srcfolder", str(DMG_TMP), "-ov", "-format", "UDZO",
-        str(DMG), capture=True)
-    shutil.rmtree(DMG_TMP)
+    # 4. Package and optionally notarize the installer ───────────────────────
+    make_dmg(args.developer_id, args.notary_profile)
 
-    # 5. Notarize DMG (optional — requires DEVELOPER_ID + NOTARY_PROFILE) ─────
-    if args.developer_id and args.notary_profile:
-        step("Signing DMG…")
-        # --timestamp is required: notarization rejects a signature without a
-        # secure timestamp, and the app bundle already gets one above.
-        run("codesign", "--timestamp", "--sign", args.developer_id, str(DMG))
-        step("Submitting DMG to Apple notary service…")
-        # Check the verdict explicitly: some notarytool releases exit 0 even
-        # when `--wait` ends on "status: Invalid", and the rejection would
-        # then surface only as a cryptic stapler error. Fail loudly here.
-        submit_out = run("xcrun", "notarytool", "submit", str(DMG),
-                         "--keychain-profile", args.notary_profile, "--wait",
-                         capture=True)
-        print(submit_out, file=sys.stderr)
-        if "status: Accepted" not in submit_out:
-            fail("Notarization not accepted — inspect it with:\n"
-                 f"  xcrun notarytool log <submission-id> "
-                 f"--keychain-profile {args.notary_profile}")
-        step("Stapling notarization ticket…")
-        run("xcrun", "stapler", "staple", str(DMG))
-        print("   ✓ Notarized & stapled.")
-    elif args.developer_id:
-        print("   (export NOTARY_PROFILE to also notarize)")
-
-    # 6. Done ─────────────────────────────────────────────────────────────────
+    # 5. Done ─────────────────────────────────────────────────────────────────
     size_mb = DMG.stat().st_size / 1_000_000
     print(f"✅ Done: {DMG}  ({size_mb:.1f}M)")
     print(f'\n   Open "{DMG.name}" — drag {APP_NAME} to Applications')

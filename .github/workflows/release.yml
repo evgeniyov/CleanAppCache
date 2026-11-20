@@ -3,8 +3,9 @@ name: Release
 # A tag such as v2.0.0 produces a Developer ID-signed, notarized and stapled DMG
 # in a GitHub Release, with that version's CHANGELOG.md section as the body.
 #
-# Without Developer ID secrets the workflow does nothing: the `release` job is
-# skipped. It needs these repository secrets:
+# If any required secret is missing, the signing and publication job is skipped.
+# The maintainer publishes the unnotarized DMG by hand in that case.
+# The automated release needs these repository secrets:
 #   DEVELOPER_ID_P12_BASE64     — Developer ID Application certificate as p12, base64
 #   DEVELOPER_ID_P12_PASSWORD   — password for the p12
 #   DEVELOPER_ID_IDENTITY       — "Developer ID Application: … (TEAMID)"
@@ -20,7 +21,7 @@ permissions:
 
 jobs:
   # The `secrets` context is unavailable in a job-level `if`, so a step checks
-  # for the certificate and passes the result to the next job as an output.
+  # for every required secret and passes the result to the next job as an output.
   preflight:
     name: Secrets present?
     runs-on: ubuntu-latest
@@ -29,10 +30,16 @@ jobs:
     steps:
       - id: check
         env:
-          HAS_CERT: ${{ secrets.DEVELOPER_ID_P12_BASE64 != '' && secrets.DEVELOPER_ID_IDENTITY != '' && secrets.APPLE_APP_PASSWORD != '' }}
+          RELEASE_READY: >-
+            ${{ secrets.DEVELOPER_ID_P12_BASE64 != '' &&
+            secrets.DEVELOPER_ID_P12_PASSWORD != '' &&
+            secrets.DEVELOPER_ID_IDENTITY != '' &&
+            secrets.APPLE_ID != '' &&
+            secrets.APPLE_TEAM_ID != '' &&
+            secrets.APPLE_APP_PASSWORD != '' }}
         run: |
-          echo "ready=$HAS_CERT" >> "$GITHUB_OUTPUT"
-          [ "$HAS_CERT" = "true" ] || echo "::notice::Developer ID secrets are not configured — release skipped"
+          echo "ready=$RELEASE_READY" >> "$GITHUB_OUTPUT"
+          [ "$RELEASE_READY" = "true" ] || echo "::notice::Signing or notarization secrets are missing — automated release skipped"
 
   release:
     name: Sign, notarize, publish

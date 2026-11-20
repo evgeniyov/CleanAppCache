@@ -50,10 +50,17 @@ jobs:
         # which mode they ran in.
         run: sysctl kern.hv_vmm_present hw.perflevel0.logicalcpu || true
 
+      - name: Install uv for cache integration tests
+        run: |
+          python3 -m venv "$RUNNER_TEMP/cac-uv"
+          "$RUNNER_TEMP/cac-uv/bin/python" -m pip install uv==0.11.11
+
       - name: Run tests
         # PathGuardTests and DeletionRoutingTests guard against data loss:
         # a failure here means a protected path can be deleted, or code
         # deletes files without going through the guard.
+        env:
+          CAC_TEST_UV: ${{ runner.temp }}/cac-uv/bin/uv
         run: swift test --skip-build
 
       - name: Integration smoke checks

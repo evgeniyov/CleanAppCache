@@ -10,8 +10,8 @@ This file gives AI coding agents the rules and context for working in this repos
 - **Language / build**: Swift and SwiftUI, Swift Package Manager.
   `Package.swift` uses swift-tools-version 5.9 with the `StrictConcurrency`
   experimental feature on the library target; CI builds on the `macos-15`
-  runner with its default Xcode 16 (Swift 6 toolchain, Swift 5 language mode,
-  because the tools version is 5.9) and warnings as errors.
+  image's default Xcode and treats warnings as errors. The Swift 6 toolchain
+  uses Swift 5 language mode because the tools version is 5.9.
 - **Build & run**: `python3 build.py && open CleanAppCache.app` builds a
   universal `.app` and a DMG. It signs with the local "CleanAppCache Local"
   identity when `Scripts/make_signing_identity.sh` has created it, otherwise
@@ -216,9 +216,10 @@ C wrapper, a command assembled from pieces) is not detected, so review for it.
   machine. Work that is not finished or not green is not pushed.
 - A multi-step change that cannot stay green between its steps lives on a
   branch and is fast-forwarded into `master` once it verifies.
-- After a push, CI is checked (`gh run list`, `gh run watch <id>`). CI builds
-  with Xcode 16, whose Swift 6.0 compiler rejects some code the local Xcode 27
-  accepts; a red CI is fixed before anything else is pushed.
+- After a push, CI is checked (`gh run list`, `gh run watch <id>`). CI uses
+  the `macos-15` runner's default Xcode, whose older Swift compiler rejects
+  some code the local toolchain accepts. Fix a red CI before pushing anything
+  else.
 - `master` is never force-pushed and published history is not rewritten.
 - Pushing a change under `.github/workflows/` needs a GitHub token with the
   `workflow` scope (`gh auth refresh -h github.com -s workflow`).
@@ -227,8 +228,9 @@ C wrapper, a command assembled from pieces) is not detected, so review for it.
   user-visible changes ships as a new version: move the CHANGELOG `Unreleased`
   entries under `## X.Y — YYYY-MM-DD`, bump the default, commit, tag `vX.Y`,
   push the commit and the tag, and build the DMG from that commit so the
-  installed app matches GitHub. A `v*` tag runs `release.yml`, which is
-  skipped until the Developer ID secrets exist.
+  installed app matches GitHub. A `v*` tag runs `release.yml`. If any of the
+  six signing and notarization secrets is missing, the job skips signing and
+  publication and the maintainer publishes the unnotarized DMG by hand.
 
 ## Testing
 - Unit tests live in `Tests/CleanAppCacheTests/`; run `swift test`.
