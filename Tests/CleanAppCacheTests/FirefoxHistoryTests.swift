@@ -98,6 +98,31 @@ final class FirefoxHistoryTests: XCTestCase {
         return values
     }
 
+    func testScanOmitsEmptyHistoryAndReportsUnreadableDatabase() throws {
+        try makeDatabase()
+        let unknown = directory.appendingPathComponent("unreadable.sqlite")
+        let missing = directory.appendingPathComponent("missing.sqlite")
+        try Data("invalid database".utf8).write(to: unknown)
+
+        var scan = PrivacyManager.probeHistoryDatabases([database, unknown, missing])
+        XCTAssertEqual(scan.available, [database])
+        XCTAssertEqual(scan.unreadable, [unknown])
+
+        guard case .cleared = FirefoxHistory.clear(database: database) else {
+            return XCTFail("fixture history should clear")
+        }
+        scan = PrivacyManager.probeHistoryDatabases([database, unknown, missing])
+        XCTAssertEqual(scan.available, [])
+        XCTAssertEqual(scan.unreadable, [unknown])
+        XCTAssertEqual(FirefoxHistory.clear(database: database), .nothingToClear)
+        XCTAssertEqual(try column("SELECT title FROM moz_bookmarks ORDER BY id"), ["root", "Bookmarked"])
+    }
+
+    func testProbeFindsMetadataWithoutVisits() throws {
+        try execute(Self.schema + "INSERT INTO moz_places_metadata (place_id) VALUES (1)")
+        XCTAssertEqual(FirefoxHistory.probe(database: database), .available)
+    }
+
     // MARK: - Clearing
 
     func testHistoryGoesAndBookmarksAndKeywordsStay() throws {
@@ -137,6 +162,7 @@ final class FirefoxHistoryTests: XCTestCase {
         // Without the counter there is no telling which pages bookmarks use.
         try execute("ALTER TABLE moz_places DROP COLUMN foreign_count")
 
+        XCTAssertEqual(FirefoxHistory.probe(database: database), .unknown)
         guard case .failed = FirefoxHistory.clear(database: database) else {
             return XCTFail("a schema without moz_places.foreign_count must not be cleared")
         }

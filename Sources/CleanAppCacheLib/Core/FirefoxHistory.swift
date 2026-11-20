@@ -21,7 +21,12 @@ enum FirefoxHistory {
         /// sidecar files shrank on disk. It is often 0: SQLite keeps freed pages
         /// inside the file for reuse unless the database uses auto-vacuum.
         case cleared(reclaimedBytes: UInt64)
+        case nothingToClear
         case failed(reason: String)
+    }
+
+    enum Probe: Equatable {
+        case available, empty, unknown
     }
 
     /// Tables and columns the clear relies on. A database missing any of them
@@ -42,40 +47,39 @@ enum FirefoxHistory {
     struct Step: Sendable {
         let sql: String
         var onlyIf: (table: String, column: String)?
+        var selection: String?
+
+        static func delete(from table: String, predicate: String? = nil,
+                           ifColumn column: String? = nil) -> Self {
+            let source = "FROM \(table)" + (predicate.map { " WHERE \($0)" } ?? "")
+            return Step(sql: "DELETE \(source)", onlyIf: column.map { (table, $0) },
+                        selection: "SELECT 1 \(source) LIMIT 1")
+        }
     }
 
-    /// The clear, in order. Rows that hang off a visit or a page go before the
-    /// pages themselves.
+    /// The clear, in order. Rows that hang off a visit or a page go before
+    /// the pages themselves.
     static let steps: [Step] = [
-        Step(sql: "DELETE FROM moz_historyvisits"),
-        Step(sql: "DELETE FROM moz_historyvisits_extra",
-             onlyIf: ("moz_historyvisits_extra", "visit_id")),
-        Step(sql: "DELETE FROM moz_inputhistory"),
+        .delete(from: "moz_historyvisits"),
+        .delete(from: "moz_historyvisits_extra", ifColumn: "visit_id"),
+        .delete(from: "moz_inputhistory"),
         // Time spent on pages and the search terms that led to them.
-        Step(sql: "DELETE FROM moz_places_metadata",
-             onlyIf: ("moz_places_metadata", "place_id")),
-        Step(sql: "DELETE FROM moz_places_metadata_search_queries",
-             onlyIf: ("moz_places_metadata_search_queries", "id")),
-        // `foreign_count` counts the bookmarks and keywords that point at a
-        // page. The two subqueries keep such a page even if that counter has
-        // drifted: a page deleted from under a bookmark breaks the bookmark.
-        Step(sql: """
-            DELETE FROM moz_places
-            WHERE foreign_count = 0
+        .delete(from: "moz_places_metadata", ifColumn: "place_id"),
+        .delete(from: "moz_places_metadata_search_queries", ifColumn: "id"),
+        // A stale foreign_count must never allow deletion of a bookmark or keyword.
+        .delete(from: "moz_places", predicate: """
+            foreign_count = 0
               AND id NOT IN (SELECT fk FROM moz_bookmarks WHERE fk IS NOT NULL)
               AND id NOT IN (SELECT place_id FROM moz_keywords WHERE place_id IS NOT NULL)
             """),
-        // Annotations of the pages just deleted; a bookmarked page keeps its own.
-        Step(sql: "DELETE FROM moz_annos WHERE place_id NOT IN (SELECT id FROM moz_places)",
-             onlyIf: ("moz_annos", "place_id")),
-        Step(sql: "DELETE FROM moz_places_extra WHERE place_id NOT IN (SELECT id FROM moz_places)",
-             onlyIf: ("moz_places_extra", "place_id")),
-        // Firefox maintains these with temporary triggers that exist only on
-        // its own connection, so they are reset here by hand.
-        Step(sql: "UPDATE moz_places SET visit_count = 0, last_visit_date = NULL"),
-        Step(sql: """
-            DELETE FROM moz_origins
-            WHERE id NOT IN (SELECT DISTINCT origin_id FROM moz_places WHERE origin_id IS NOT NULL)
+        // A bookmarked page keeps its own annotations.
+        .delete(from: "moz_annos", predicate: "place_id NOT IN (SELECT id FROM moz_places)", ifColumn: "place_id"),
+        .delete(from: "moz_places_extra", predicate: "place_id NOT IN (SELECT id FROM moz_places)", ifColumn: "place_id"),
+        // Firefox resets these with temporary triggers on its own connection.
+        Step(sql: "UPDATE moz_places SET visit_count = 0, last_visit_date = NULL",
+             selection: "SELECT 1 FROM moz_places WHERE visit_count != 0 OR last_visit_date IS NOT NULL LIMIT 1"),
+        .delete(from: "moz_origins", predicate: """
+            id NOT IN (SELECT DISTINCT origin_id FROM moz_places WHERE origin_id IS NOT NULL)
             """),
         // Ranking in the address bar was computed from the visits; these flags
         // make Firefox recompute it for the bookmarks that remain.
@@ -89,13 +93,34 @@ enum FirefoxHistory {
              onlyIf: ("moz_origins", "recalc_alt_frecency")),
     ]
 
+    static func probe(database url: URL) -> Probe {
+        guard let pointer = realpath(url.path, nil) else {
+            return errno == ENOENT || errno == ENOTDIR ? .empty : .unknown
+        }
+        let target = URL(fileURLWithPath: String(cString: pointer))
+        free(pointer)
+        guard PathGuard.reject(target) == nil, FileSnapshot(at: target)?.isRegularFile == true else {
+            return .unknown
+        }
+
+        var handle: OpaquePointer?
+        let status = sqlite3_open_v2(target.path, &handle, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOFOLLOW, nil)
+        defer { sqlite3_close_v2(handle) }
+        guard status == SQLITE_OK, let db = handle, exec(db, "BEGIN") == nil else { return .unknown }
+        let schema = schemaColumns(in: db)
+        guard missingRequirement(in: schema) == nil else { return .unknown }
+        return probeRows(in: db, steps: matchingSteps(in: schema))
+    }
+
     /// Clears the history in the database at `url`. `busyTimeout` is how long,
     /// in milliseconds, to wait for another connection's lock before failing.
     static func clear(database url: URL, busyTimeout: Int32 = 2_000) -> Outcome {
         let before = footprint(of: url)
-        if let reason = run(database: url, busyTimeout: busyTimeout) {
+        var didClear = false
+        if let reason = run(database: url, busyTimeout: busyTimeout, didClear: &didClear) {
             return .failed(reason: reason)
         }
+        guard didClear else { return .nothingToClear }
         // Measured after the connection is closed: closing the last connection
         // checkpoints the write-ahead log and removes it.
         let after = footprint(of: url)
@@ -103,7 +128,7 @@ enum FirefoxHistory {
     }
 
     /// Nil on success, otherwise why the clear was rolled back or never began.
-    private static func run(database url: URL, busyTimeout: Int32) -> String? {
+    private static func run(database url: URL, busyTimeout: Int32, didClear: inout Bool) -> String? {
         if let reason = PathGuard.reject(url) { return "protected database: \(reason)" }
         guard let pointer = realpath(url.path, nil) else { return "database is missing or inaccessible" }
         let physicalPath = String(cString: pointer)
@@ -137,10 +162,34 @@ enum FirefoxHistory {
         _ = exec(db, "PRAGMA foreign_keys = OFF")
 
         if let error = exec(db, "BEGIN IMMEDIATE") { return error }
-        if let error = clearInTransaction(db) ?? exec(db, "COMMIT") {
+
+        let schema = schemaColumns(in: db)
+        let activeSteps = matchingSteps(in: schema)
+        if let error = missingRequirement(in: schema) {
             _ = exec(db, "ROLLBACK")
             return error
         }
+        switch probeRows(in: db, steps: activeSteps) {
+        case .available: break
+        case .empty:
+            _ = exec(db, "ROLLBACK")
+            return nil
+        case .unknown:
+            _ = exec(db, "ROLLBACK")
+            return "history rows could not be read"
+        }
+
+        for step in activeSteps {
+            if let error = exec(db, step.sql) {
+                _ = exec(db, "ROLLBACK")
+                return error
+            }
+        }
+        if let error = exec(db, "COMMIT") {
+            _ = exec(db, "ROLLBACK")
+            return error
+        }
+        didClear = true
 
         // Best effort once the history is committed: give freed pages back to
         // the file system when the database uses incremental auto-vacuum, and
@@ -151,23 +200,39 @@ enum FirefoxHistory {
         return nil
     }
 
-    private static func clearInTransaction(_ db: OpaquePointer) -> String? {
-        var columns: [String: Set<String>] = [:]
-        func has(_ table: String, _ column: String) -> Bool {
-            if columns[table] == nil { columns[table] = self.columns(of: table, in: db) }
-            return columns[table]?.contains(column) == true
-        }
+    private static func schemaColumns(in db: OpaquePointer) -> [String: Set<String>] {
+        let tables = Set(requiredSchema.map(\.table) + steps.compactMap { $0.onlyIf?.table })
+        return Dictionary(uniqueKeysWithValues: tables.map { ($0, columns(of: $0, in: db)) })
+    }
 
+    private static func missingRequirement(in schema: [String: Set<String>]) -> String? {
         for (table, required) in requiredSchema {
-            for column in required where !has(table, column) {
+            for column in required where schema[table]?.contains(column) != true {
                 return "unknown places.sqlite schema: \(table).\(column) is missing"
             }
         }
-        for step in steps {
-            if let condition = step.onlyIf, !has(condition.table, condition.column) { continue }
-            if let error = exec(db, step.sql) { return error }
-        }
         return nil
+    }
+
+    private static func matchingSteps(in schema: [String: Set<String>]) -> [Step] {
+        steps.filter { step in
+            guard let condition = step.onlyIf else { return true }
+            return schema[condition.table]?.contains(condition.column) == true
+        }
+    }
+
+    private static func probeRows(in db: OpaquePointer, steps: [Step]) -> Probe {
+        for sql in steps.compactMap(\.selection) {
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return .unknown }
+            defer { sqlite3_finalize(statement) }
+            switch sqlite3_step(statement) {
+            case SQLITE_ROW: return .available
+            case SQLITE_DONE: continue
+            default: return .unknown
+            }
+        }
+        return .empty
     }
 
     /// The table's column names; empty when the table does not exist.

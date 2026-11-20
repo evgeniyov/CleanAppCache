@@ -87,6 +87,7 @@ public final class DuplicatesViewModel: ObservableObject {
     private let preflight: @Sendable (DuplicateFile) async -> Bool
     private let mover: (@Sendable (URL) throws -> URL)?
     private let history: CleanupHistory
+    private let invalidateStorage: @Sendable ([URL]) async -> Void
 
     public convenience init() {
         self.init(preflight: { file in
@@ -95,8 +96,12 @@ public final class DuplicatesViewModel: ObservableObject {
     }
 
     init(preflight: @escaping @Sendable (DuplicateFile) async -> Bool,
-         mover: (@Sendable (URL) throws -> URL)?, history: CleanupHistory) {
+         mover: (@Sendable (URL) throws -> URL)?, history: CleanupHistory,
+         invalidateStorage: @escaping @Sendable ([URL]) async -> Void = {
+             await StorageManager.shared.invalidate(deleted: $0)
+         }) {
         self.preflight = preflight; self.mover = mover; self.history = history
+        self.invalidateStorage = invalidateStorage
     }
 
 
@@ -150,7 +155,7 @@ public final class DuplicatesViewModel: ObservableObject {
         var total: UInt64 = 0
         for group in groups {
             for file in group.files where selectedForDeletion.contains(file.id) {
-                total += file.size
+                total += file.allocatedBytes
             }
         }
         return total
@@ -236,22 +241,11 @@ public final class DuplicatesViewModel: ObservableObject {
     /// The copy `rule` keeps in `group` — what the row names before anything
     /// is deleted, from the same ordering `autoSelect` uses.
     public static func survivor(of group: DuplicateGroup, keep rule: KeepRule) -> DuplicateFile? {
-        ranked(group, keep: rule).first
+        group.survivor(newestFirst: rule == .newest)
     }
 
-    /// Survivor first: newest (or oldest) modification date, then the
-    /// shallower path, then the path itself, so a `cp -p` tie always resolves
-    /// the same way.
     private static func ranked(_ group: DuplicateGroup, keep rule: KeepRule) -> [DuplicateFile] {
-        group.files.sorted { lhs, rhs in
-            let a = lhs.modified ?? .distantPast
-            let b = rhs.modified ?? .distantPast
-            if a != b { return rule == .newest ? a > b : a < b }
-            let da = lhs.url.pathComponents.count
-            let db = rhs.url.pathComponents.count
-            if da != db { return da < db }
-            return lhs.url.path < rhs.url.path
-        }
+        group.files.sorted { $0.preferred(over: $1, newestFirst: rule == .newest) }
     }
 
     public func deleteSelected() async {
@@ -330,7 +324,7 @@ public final class DuplicatesViewModel: ObservableObject {
             return TrashService.trash(toDelete, validation: validation)
         }.value
         let trashedPaths = Set(res.trashed.map { $0.original.path })
-        await StorageManager.shared.invalidate(deleted: res.trashed.map { $0.original })
+        await invalidateStorage(res.trashed.map(\.original))
 
         groups = groups.compactMap { group in
             let remaining = group.files.filter { !trashedPaths.contains($0.url.path) }
@@ -344,17 +338,28 @@ public final class DuplicatesViewModel: ObservableObject {
         let record = history.log(.duplicates, items: res.count, trashedBytes: res.freedBytes)
         let history = self.history
         TrashService.presentToast(res) { [weak self] in
-            let n = TrashService.restore(res.trashed, recordingUndoOf: record, history: history)
-            if n > 0, let self, self.scope == previousScope, self.minSize == previousThreshold,
-               self.scanGeneration == previousGeneration, !self.isScanning, !self.isDeleting {
-                let restoredGroups = previousGroups.compactMap { group -> DuplicateGroup? in
-                    let files = group.files.filter { !RemovalCheck.isMissing($0.url) }
-                    return files.count > 1 ? DuplicateGroup(size: group.size, files: files) : nil
-                }
+            let restored = TrashService.restoreItems(res.trashed, recordingUndoOf: record, history: history)
+            TrashService.presentRestore(restored.count)
+            guard !restored.isEmpty, let self, self.scope == previousScope, self.minSize == previousThreshold,
+                  self.scanGeneration == previousGeneration, !self.isScanning, !self.isDeleting else { return }
+            self.isDeleting = true
+            let restoredPaths = Set(restored.map { $0.original.path })
+            Task {
+                let restoredGroups = await Task.detached(priority: .userInitiated) {
+                    previousGroups.compactMap { group -> DuplicateGroup? in
+                        let files = group.files.compactMap { file -> DuplicateFile? in
+                            let path = file.url.path
+                            if restoredPaths.contains(path) { return file.refreshedAfterRestore() }
+                            guard !trashedPaths.contains(path), !RemovalCheck.isMissing(file.url) else { return nil }
+                            return file
+                        }
+                        return files.count > 1 ? DuplicateGroup(size: group.size, files: files) : nil
+                    }
+                }.value
                 self.groups = restoredGroups
                 self.result = DuplicateScanResult(groups: restoredGroups, duration: previousDuration)
+                self.isDeleting = false
             }
-            TrashService.presentRestore(n)
         }
         if skipped > 0 {
             ToastCenter.shared.error(Localizer.shared.f("dup.staleSkippedFmt", Fmt.plural("plural.files", skipped)))

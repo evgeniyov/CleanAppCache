@@ -57,6 +57,7 @@ public struct BrowserEntry: Identifiable, Sendable {
     public var totalSize: UInt64
     public var isRunning: Bool
     public var isInstalled: Bool
+    var unreadableHistoryDatabases: [URL] = []
 
     /// Everything this row deletes.
     public var files: [URL] { historyFiles + siteDataFiles }
@@ -135,9 +136,9 @@ public actor PrivacyManager {
 
         return definitions.compactMap { def in
             let history = existing(def.paths.history)
-            let databases = existing(def.paths.historyDatabases)
+            let databases = Self.probeHistoryDatabases(def.paths.historyDatabases)
             let siteData = existing(def.paths.siteData)
-            let isInstalled = !history.isEmpty || !databases.isEmpty || !siteData.isEmpty ||
+            let isInstalled = !history.isEmpty || !databases.available.isEmpty || !databases.unreadable.isEmpty || !siteData.isEmpty ||
                 NSWorkspace.shared.urlForApplication(withBundleIdentifier: def.id) != nil
             guard isInstalled else { return nil }
             return BrowserEntry(
@@ -145,14 +146,28 @@ public actor PrivacyManager {
                 name: def.name,
                 icon: def.icon,
                 historyFiles: history,
-                historyDatabases: databases,
+                historyDatabases: databases.available,
                 siteDataFiles: siteData,
                 totalSize: measure(history) &+ measure(siteData),
                 isRunning: Self.blockingProcess(for: def.id) != nil,
-                isInstalled: isInstalled
+                isInstalled: isInstalled,
+                unreadableHistoryDatabases: databases.unreadable
             )
         }
         .sorted { $0.name < $1.name }
+    }
+
+    static func probeHistoryDatabases(_ urls: [URL]) -> (available: [URL], unreadable: [URL]) {
+        var available: [URL] = []
+        var unreadable: [URL] = []
+        for url in urls {
+            switch FirefoxHistory.probe(database: url) {
+            case .available: available.append(url)
+            case .unknown: unreadable.append(url)
+            case .empty: break
+            }
+        }
+        return (available, unreadable)
     }
 
     /// Keeps only the paths that are actually on this machine. Every browser
@@ -179,9 +194,7 @@ public actor PrivacyManager {
 
     /// Permanently delete the browser's history **and** site data.
     ///
-    /// Named for its only call site — `PrivacyViewModel.clearHistory(for:)` —
-    /// but it clears history and site data both, as the consequence line
-    /// promises. `cleared` counts the files deleted plus the history databases
+    /// `cleared` counts the files deleted plus the history databases
     /// cleared: an in-place clear frees next to nothing, so `freed` alone
     /// cannot tell whether anything happened.
     public func clearHistory(for entry: BrowserEntry) -> (freed: UInt64, failed: Int, cleared: Int) {
@@ -219,6 +232,7 @@ public actor PrivacyManager {
             case .cleared(let reclaimed):
                 freed &+= reclaimed
                 cleared += 1
+            case .nothingToClear: break
             case .failed(let reason):
                 Log.error("History clear left \(database.path) unchanged: \(reason)")
                 failed += 1

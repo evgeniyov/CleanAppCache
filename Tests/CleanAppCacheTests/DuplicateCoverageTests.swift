@@ -21,6 +21,32 @@ final class DuplicateCoverageTests: XCTestCase {
         return url
     }
 
+    @MainActor
+    func testSparseDuplicatesMatchByLengthButUseAllocatedBytesForSavings() async throws {
+        let logicalSize: UInt64 = 1_048_576
+        for name in ["sparse-first", "sparse-second"] {
+            let url = root.appendingPathComponent(name)
+            XCTAssertTrue(fm.createFile(atPath: url.path, contents: nil))
+            let file = try FileHandle(forWritingTo: url)
+            try file.truncate(atOffset: logicalSize)
+            try file.close()
+            XCTAssertEqual(StorageManager.allocatedLeafSize(at: url), 0)
+        }
+
+        let result = await DuplicateFinder.shared.findDuplicates(in: root, minSize: logicalSize) { _, _ in }
+        let group = try XCTUnwrap(result.groups.first)
+        XCTAssertEqual(group.count, 2)
+        XCTAssertEqual(group.size, logicalSize)
+        XCTAssertEqual(group.wastedBytes, 0)
+        XCTAssertEqual(result.totalReclaimable, 0)
+
+        let vm = DuplicatesViewModel()
+        vm.groups = [group]
+        vm.autoSelect(keep: .newest)
+        XCTAssertEqual(vm.selectedCount, 1)
+        XCTAssertEqual(vm.selectedSize, 0)
+    }
+
     func testMissingRootReportsIncompleteCoverage() async {
         let missing = root.appendingPathComponent("missing")
         let result = await DuplicateFinder.shared.findDuplicates(in: missing, minSize: 1) { _, _ in }

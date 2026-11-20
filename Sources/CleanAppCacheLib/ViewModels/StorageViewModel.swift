@@ -150,71 +150,81 @@ public final class StorageViewModel: ObservableObject {
     private var detailTask: Task<Void, Never>?
     private var detailGeneration = UUID()
 
+    typealias Overview = (info: StorageInfo, breakdown: [StorageBreakdown])
+
     private let manager: StorageManager
+    private let measureOverview: @Sendable () async -> Overview?
+    private var overviewTask: Task<Void, Never>?
     private var hasLoaded = false
-    
+
     private var invalidationObserver: StorageInvalidationObservation?
 
     public convenience init(manager: StorageManager = .shared) {
         self.init(manager: manager, explorer: .live)
     }
 
-    init(manager: StorageManager, explorer: StorageExplorer) {
+    init(manager: StorageManager, explorer: StorageExplorer,
+         measureOverview: (@Sendable () async -> Overview?)? = nil) {
         self.manager = manager
         self.explorer = explorer
-        // A cleanup on any other tab expires the manager's caches but not this
-        // view model's drill-down cache; without this observer Storage keeps
-        // listing files that have already been deleted.
+        self.measureOverview = measureOverview ?? {
+            guard let info = await manager.getStorageInfo() else { return nil }
+            let breakdown = await manager.getBreakdown(totalBytes: info.totalBytes, usedBytes: info.usedBytes)
+            return (info, breakdown)
+        }
         invalidationObserver = StorageInvalidationObservation(NotificationCenter.default.addObserver(
             forName: .storageCacheInvalidated, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.invalidateDetailState() }
+            // Invalidate on delivery so a finishing measurement cannot publish
+            // between the notification and an enqueued MainActor task.
+            MainActor.assumeIsolated { self?.invalidateStorageState() }
         })
     }
 
     public func loadStorageInfoIfNeeded() {
         guard !hasLoaded else { return }
-        hasLoaded = true
         loadStorageInfo()
     }
-    
+
     public func reloadStorageInfo() {
-        hasLoaded = true
-        // Drop drill-down results so a manual rescan reflects post-cleanup state
-        // (the manager's size caches are already expired at the delete sites).
+        guard !isLoading else { return }
         detailCache.removeAll()
         browserSnapshots.entries.removeAll()
-        Task {
-            await manager.diskCache.clearBrowserSnapshots()
-            loadStorageInfo()
-        }
+        loadStorageInfo(clearBrowserSnapshots: true)
     }
-    
-    private func loadStorageInfo() {
+
+    private func loadStorageInfo(clearBrowserSnapshots: Bool = false) {
         guard !isLoading else { return }
         isLoading = true
-        breakdown = []
-        scanLog.removeAll()
-        
-        Task {
-            if let info = await manager.getStorageInfo() {
-                self.storageInfo = info
-                self.scanLog.append("Total: \(info.formattedTotal)")
-                self.scanLog.append("Used: \(info.formattedUsed) (\(Int(info.usedPercent * 100))%)")
-                self.scanLog.append("Free: \(info.formattedFree)")
-                
-                self.scanLog.append("Analyzing directories...")
-                let breakdown = await manager.getBreakdown(totalBytes: info.totalBytes, usedBytes: info.usedBytes)
-                self.breakdown = breakdown
-                self.storageMeasuredAt = Date()
-                self.scanLog.append("Done. Found \(breakdown.count) categories.")
-            } else {
-                self.scanLog.append("Failed to read storage info")
+        scanLog = ["Analyzing directories..."]
+        overviewTask = Task { [weak self, manager, measureOverview] in
+            if clearBrowserSnapshots { await manager.diskCache.clearBrowserSnapshots() }
+            guard !Task.isCancelled else { return }
+
+            let generation = await manager.diskCache.generation
+            let overview = await measureOverview()
+            let stillCurrent = await manager.diskCache.generation == generation
+            guard !Task.isCancelled, let self else { return }
+            defer {
+                self.overviewTask = nil
+                self.isLoading = false
             }
-            self.isLoading = false
+            guard stillCurrent else { return }
+            guard let (info, breakdown) = overview else {
+                self.scanLog.append("Failed to read storage info")
+                return
+            }
+            self.hasLoaded = true
+            self.storageInfo = info
+            self.breakdown = breakdown
+            self.storageMeasuredAt = Date()
+            self.scanLog.append("Total: \(info.formattedTotal)")
+            self.scanLog.append("Used: \(info.formattedUsed) (\(Int(info.usedPercent * 100))%)")
+            self.scanLog.append("Free: \(info.formattedFree)")
+            self.scanLog.append("Done. Found \(breakdown.count) categories.")
         }
     }
-    
+
     public func loadDetail(for breakdown: StorageBreakdown) {
         detailTask?.cancel()
         detailTask = nil
@@ -644,10 +654,15 @@ public final class StorageViewModel: ObservableObject {
     }
 
     public func clearCache() {
-        invalidateDetailState()
+        invalidateStorageState()
     }
 
-    private func invalidateDetailState() {
+    private func invalidateStorageState() {
+        hasLoaded = false
+        overviewTask?.cancel()
+        overviewTask = nil
+        isLoading = false
+
         // Keep visible rows for orientation, but reject in-flight measurements
         // and cached navigation snapshots produced before the filesystem change.
         cancelDetailSizing()
