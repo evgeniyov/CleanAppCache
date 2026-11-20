@@ -435,18 +435,16 @@ struct MonitorDetailPanel: View {
         ]
     }
 
-    /// Power source — "Power adapter, 96 W".
-    ///
-    /// The wattage is read from the attached adapter, so its presence *is* the
-    /// answer to "is this Mac on mains?" — `batteryCharging` is not: it is false
-    /// on a full battery that is still plugged in. Without an adapter the row
-    /// names the source alone rather than inventing a figure for it.
     private var powerSource: String? {
-        if let watts = snapshot.powerAdapterWatts {
-            return loc.f("monitor.power.adapterWattsFmt", Fmt.count(watts))
+        switch snapshot.batteryPowerSource {
+        case .adapter:
+            if let watts = snapshot.powerAdapterWatts {
+                return loc.f("monitor.power.adapterWattsFmt", Fmt.count(watts))
+            }
+            return loc.s("monitor.power.adapter")
+        case .battery: return loc.s("monitor.power.battery")
+        case nil: return nil
         }
-        guard let charging = snapshot.batteryCharging else { return nil }
-        return charging ? loc.s("monitor.power.adapter") : loc.s("monitor.power.battery")
     }
 
     private func megahertz(_ value: Double) -> String {

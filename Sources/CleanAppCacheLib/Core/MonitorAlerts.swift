@@ -10,8 +10,7 @@ import Foundation
 
 @MainActor
 public final class MonitorAlerts {
-    public static let shared = MonitorAlerts()
-    private init() {}
+    public static let shared = MonitorAlerts(defaults: .standard, notifications: .shared)
 
     // UserDefaults keys (bound from SettingsView via @AppStorage).
     public static let enabledKey        = "alerts.enabled"
@@ -21,7 +20,13 @@ public final class MonitorAlerts {
     public static let tempThresholdKey  = "alerts.tempThreshold"     // °C
     public static let pressureEnabledKey = "alerts.pressureEnabled"
 
-    private var d: UserDefaults { .standard }
+    private let d: UserDefaults
+    private let notifications: NotificationManager
+
+    init(defaults: UserDefaults, notifications: NotificationManager) {
+        d = defaults
+        self.notifications = notifications
+    }
 
     public var isEnabled: Bool { d.bool(forKey: Self.enabledKey) }
     private var cpuOn: Bool { d.object(forKey: Self.cpuEnabledKey) == nil ? true : d.bool(forKey: Self.cpuEnabledKey) }
@@ -37,11 +42,13 @@ public final class MonitorAlerts {
     // Consecutive-ticks-over-threshold counters (5 s per tick).
     private var cpuStreak = 0
     private var tempStreak = 0
+    private var lastTempSample: TimeInterval?
 
-    /// Called from the menu-bar sampler after each reading.
-    public func check(cpu: Double, cpuTemp: Double?, pressure: MemoryPressure) {
+    /// Called after a scheduled menu-bar sample.
+    func check(_ reading: SystemMonitor.MenuReading) {
         guard isEnabled else { cpuStreak = 0; tempStreak = 0; return }
         let loc = Localizer.shared
+        let cpu = reading.cpu
 
         // CPU: sustained load for ≥3 ticks (~15 s) — ignores momentary spikes.
         // Every tick past the streak asks to post and the cooldown drops the
@@ -50,7 +57,7 @@ public final class MonitorAlerts {
         if cpuOn, cpu >= cpuThreshold {
             cpuStreak += 1
             if cpuStreak >= 3 {
-                NotificationManager.shared.post(
+                notifications.post(
                     id: "com.cleanappcache.alert.cpu",
                     title: loc.s("alert.cpu.title"),
                     body: loc.f("alert.cpu.bodyFmt", Int(cpu), Int(cpuThreshold)),
@@ -60,23 +67,28 @@ public final class MonitorAlerts {
             cpuStreak = 0
         }
 
-        // Temperature: 2 consecutive ticks over the limit.
-        if tempOn, let t = cpuTemp, t >= tempThreshold {
-            tempStreak += 1
-            if tempStreak >= 2 {
-                NotificationManager.shared.post(
-                    id: "com.cleanappcache.alert.temp",
-                    title: loc.s("alert.temp.title"),
-                    body: loc.f("alert.temp.bodyFmt", Int(t), Int(tempThreshold)),
-                    cooldownKey: "alerts.cooldown.temp")
-            }
-        } else {
+        // Reusing a cached value cannot extend or break a streak.
+        if !tempOn {
             tempStreak = 0
+        } else if let time = reading.cpuTempSampleTime, time != lastTempSample {
+            lastTempSample = time
+            if let temp = reading.cpuTemp, temp >= tempThreshold {
+                tempStreak += 1
+                if tempStreak >= 2 {
+                    notifications.post(
+                        id: "com.cleanappcache.alert.temp",
+                        title: loc.s("alert.temp.title"),
+                        body: loc.f("alert.temp.bodyFmt", Int(temp), Int(tempThreshold)),
+                        cooldownKey: "alerts.cooldown.temp")
+                }
+            } else {
+                tempStreak = 0
+            }
         }
 
         // Memory pressure critical: the kernel signal itself is already damped.
-        if pressureOn, pressure == .critical {
-            NotificationManager.shared.post(
+        if pressureOn, reading.memPressure == .critical {
+            notifications.post(
                 id: "com.cleanappcache.alert.pressure",
                 title: loc.s("alert.pressure.title"),
                 body: loc.s("alert.pressure.body"),

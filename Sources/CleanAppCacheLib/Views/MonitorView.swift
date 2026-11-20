@@ -101,7 +101,7 @@ public struct MonitorView: View {
             Button(loc.s("monitor.killAction"), role: .destructive) {
                 if let target = killTarget {
                     Task {
-                        switch await SystemMonitor.shared.terminate(pid: target.id) {
+                        switch await SystemMonitor.shared.terminate(target) {
                         case .exited:
                             ToastCenter.shared.success(loc.f("monitor.killedFmt", target.name))
                         case .stillRunning:

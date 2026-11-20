@@ -56,9 +56,9 @@ enum SystemProbes {
     /// `top -l 1`: 4475 vs 4474 (the difference is the counting process itself).
     ///
     /// One Mach call, ~microseconds, so it is safe on the 2 s hot path.
-    static func systemThreadCount() -> Int? {
+    static func systemThreadCount(host: host_t) -> Int? {
         var pset = processor_set_name_t()
-        guard processor_set_default(mach_host_self(), &pset) == KERN_SUCCESS else { return nil }
+        guard processor_set_default(host, &pset) == KERN_SUCCESS else { return nil }
         defer { mach_port_deallocate(mach_task_self_, pset) }
 
         var info = processor_set_load_info()
@@ -116,6 +116,39 @@ enum SystemProbes {
     static func isPhysicalLinkType(_ type: UInt8) -> Bool {
         let t = Int32(type)
         return t == IFT_ETHER || t == IFT_IEEE1394
+    }
+
+    /// The routing table's RTM_IFINFO2 messages carry full-width byte counters.
+    /// The AF_LINK data returned by getifaddrs truncates them to 32 bits.
+    static func interfaceByteCounters() -> [UInt32: SystemMonitor.NetworkCounters.Bytes]? {
+        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, AF_UNSPEC, NET_RT_IFLIST2, 0]
+        var size = 0
+        guard sysctl(&mib, 6, nil, &size, nil, 0) == 0 else { return nil }
+        var bytes = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 6, &bytes, &size, nil, 0) == 0, size <= bytes.count else { return nil }
+        return bytes.withUnsafeBytes {
+            decodeInterfaceByteCounters(UnsafeRawBufferPointer(rebasing: $0[..<size]))
+        }
+    }
+
+    static func decodeInterfaceByteCounters(_ bytes: UnsafeRawBufferPointer)
+        -> [UInt32: SystemMonitor.NetworkCounters.Bytes]? {
+        var counters: [UInt32: SystemMonitor.NetworkCounters.Bytes] = [:]
+        var offset = 0
+        while offset < bytes.count {
+            // All routing messages start with UInt16 length, UInt8 version, UInt8 type.
+            guard bytes.count - offset >= 4 else { return nil }
+            let length = Int(bytes.loadUnaligned(fromByteOffset: offset, as: UInt16.self))
+            guard length >= 4, length <= bytes.count - offset else { return nil }
+            defer { offset += length }
+            guard bytes[offset + 2] == UInt8(RTM_VERSION),
+                  bytes[offset + 3] == UInt8(RTM_IFINFO2) else { continue }
+            guard length >= MemoryLayout<if_msghdr2>.size else { return nil }
+            let header = bytes.loadUnaligned(fromByteOffset: offset, as: if_msghdr2.self)
+            counters[UInt32(header.ifm_index)] = SystemMonitor.NetworkCounters.Bytes(
+                received: header.ifm_data.ifi_ibytes, sent: header.ifm_data.ifi_obytes)
+        }
+        return counters
     }
 
     /// BSD names of every interface holding a default (0.0.0.0 / ::) route with

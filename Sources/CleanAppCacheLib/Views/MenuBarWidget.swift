@@ -147,6 +147,7 @@ public final class MenuBarController: ObservableObject {
     /// Which metrics appear in the status-bar label (ordered). Persisted.
     @Published public var selectedMetrics: [MenuBarMetric] {
         didSet {
+            if selectedMetrics.first != oldValue.first, !history.isEmpty { history = [] }
             defaults?.set(selectedMetrics.map(\.rawValue), forKey: Self.key)
             refreshStatusLabel()
             popover.configurationChanged()
@@ -192,22 +193,6 @@ public final class MenuBarController: ObservableObject {
         // each 5 s deadline exactly and can never coalesce the wakeup. The
         // readout is only cadence-accurate anyway.
         timer?.tolerance = 0.5
-
-        // Probe GPU-temperature sensor support once, off the main thread. If it's
-        // absent, disable the metric and drop it from any persisted selection so it
-        // can't show a permanent "—" in the bar.
-        queue.async { [weak self] in
-            guard let self else { return }
-            let supported = self.monitor.probeGPUTempAvailable()
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.gpuTempSupported = supported
-                if !supported, self.selectedMetrics.contains(.gpuTemp) {
-                    self.selectedMetrics.removeAll { $0 == .gpuTemp }
-                    if self.selectedMetrics.isEmpty { self.selectedMetrics = [.cpuLoad] }
-                }
-            }
-        }
     }
 
     /// Called when the popover appears/disappears so we can compute the extra
@@ -217,7 +202,7 @@ public final class MenuBarController: ObservableObject {
         // The popover opens on the latest reading, not on the one it last
         // showed, before the fresh GPU/temperature read below lands.
         popover.setVisible(visible, latest: readings)
-        if visible { tick() }   // refresh GPU/temps right away
+        if visible { tick(scheduled: false) }   // refresh GPU/temps right away
     }
 
     public func toggle(_ metric: MenuBarMetric) {
@@ -309,7 +294,8 @@ public final class MenuBarController: ObservableObject {
             cells: cells,
             // Only the layouts that draw these carry them, so a new sparkline
             // point or a core's flicker never redraws a label that shows neither.
-            history: style == .graph ? history.map(MenuBarLabelState.wholePercent) : [],
+            history: style == .graph && cells.first?.fraction != nil
+                ? history.map(MenuBarLabelState.wholePercent) : [],
             perCore: style == .cores ? perCore.map { $0.rounded(.down) } : []
         )
     }
@@ -319,7 +305,7 @@ public final class MenuBarController: ObservableObject {
     }
 
     /// Records the primary metric's current load for the sparkline.
-    private func appendHistory() {
+    func appendHistory() {
         guard let first = selectedMetrics.first,
               let fraction = loadFraction(first) else { return }
         history.append(max(0, min(1, fraction)))
@@ -333,13 +319,14 @@ public final class MenuBarController: ObservableObject {
         readings.loadFraction(metric)
     }
 
-    private func tick() {
+    private func tick(scheduled: Bool = true) {
         // Low-disk check every ~60 s (12 × 5 s timer interval). The volume stat is
         // a filesystem syscall that can block on a slow/sleeping disk, so it must
         // not run on the MainActor — do it on the sampler queue and hop back only
         // to deliver the result.
-        tickCount += 1
-        if tickCount.isMultiple(of: 12), UserDefaults.standard.bool(forKey: NotificationManager.lowDiskEnabledKey) {
+        if scheduled { tickCount += 1 }
+        if scheduled, tickCount.isMultiple(of: 12),
+           UserDefaults.standard.bool(forKey: NotificationManager.lowDiskEnabledKey) {
             queue.async {
                 // Same free-space definition the Storage screen shows, so the
                 // alert can't contradict the number on screen.
@@ -372,7 +359,7 @@ public final class MenuBarController: ObservableObject {
 
         queue.async { [weak self] in
             guard let self else { return }
-            let r = self.monitor.menuSample(includeGPU: needGPU, temperatures: temperatures)
+            let r = self.monitor.menuSample(includeGPU: needGPU, temperatures: temperatures, refreshCPU: scheduled)
             // A failed startup discovery is retried on this queue. Once sensor
             // availability is known the probe returns its cached result.
             let gpuTempSupported = self.monitor.probeGPUTempAvailable()
@@ -397,16 +384,14 @@ public final class MenuBarController: ObservableObject {
                 if next != self.readings { self.readings = next }
                 let cores = r.perCore.map(MenuBarReadings.displayed)
                 if cores != self.perCore { self.perCore = cores }
-                self.appendHistory()
                 self.sampling    = false
+                if scheduled {
+                    if self.selectedMetrics.first != .gpuLoad || needGPU { self.appendHistory() }
+                    // Use raw samples on the timer cadence to preserve sustained-alert thresholds.
+                    MonitorAlerts.shared.check(r)
+                }
                 self.refreshStatusLabel()
                 self.popover.show(self.readings)
-                // Threshold alerts ride the always-on menu-bar cadence, so they
-                // fire even when the main window is closed. They compare the
-                // raw reading, not the display-rounded one.
-                MonitorAlerts.shared.check(cpu: r.cpu,
-                                           cpuTemp: needCPUTemp ? r.cpuTemp : nil,
-                                           pressure: r.memPressure)
             }
         }
     }
@@ -610,8 +595,8 @@ enum MenuBarLabelRenderer {
             let top = (cell.top as NSString).size(withAttributes: attrs(stackTopFont, alpha: 0.75)).width
             return ceil(max(top, value.size(withAttributes: attrs(stackValueFont)).width))
         case .graph:
-            return ceil(graphSize.width + graphicGap
-                        + value.size(withAttributes: attrs(valueFont)).width)
+            let graphic = cell.fraction == nil ? 0 : graphSize.width + graphicGap
+            return ceil(graphic + value.size(withAttributes: attrs(valueFont)).width)
         case .gauge:
             let track = cell.fraction == nil ? 0 : gaugeSize.width + graphicGap
             return ceil(track + value.size(withAttributes: attrs(valueFont)).width)
@@ -650,6 +635,10 @@ enum MenuBarLabelRenderer {
                                           withAttributes: valueAttrs)
 
         case .graph:
+            guard cell.fraction != nil else {
+                drawValue(cell.value, atX: x)
+                return
+            }
             drawGraph(state.history, atX: x)
             drawValue(cell.value, atX: x + graphSize.width + graphicGap)
 
