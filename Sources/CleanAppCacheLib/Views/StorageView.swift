@@ -20,6 +20,7 @@ public struct StorageView: View {
     /// The category whose contents the right-hand panel is showing.
     @State private var picked: UUID?
     @State private var showsFreeSpaceHistory = false
+    @State private var showsStorageChanges = false
     @State private var lastRefresh: Date?
     @State private var externalVolumes: [StorageVolume] = []
     @State private var selectedVolume: StorageVolume?
@@ -50,6 +51,8 @@ public struct StorageView: View {
             ScreenHeader(title: loc.s("storage.title"), subtitle: subtitle) {
                 HStack(spacing: 8) {
                     if selectedVolume == nil {
+                        Button(loc.s("storage.changes.title")) { showsStorageChanges = true }
+                            .buttonStyle(.secondaryAction)
                         Button(loc.s("storage.trend.title")) { showsFreeSpaceHistory = true }
                             .buttonStyle(.secondaryAction)
                     }
@@ -82,6 +85,9 @@ public struct StorageView: View {
             Task { await FreeSpaceHistory.shared.capture() }
         }
         .sheet(isPresented: $showsFreeSpaceHistory) { FreeSpaceHistoryView().environmentObject(loc) }
+        .sheet(isPresented: $showsStorageChanges) {
+            StorageChangesView(makeBrowser: viewModel.makeDetailBrowser).environmentObject(loc)
+        }
         .sheet(item: $browserPresentation) { presentation in
             StorageDetailView()
                 .environmentObject(presentation.viewModel)

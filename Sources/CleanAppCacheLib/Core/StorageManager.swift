@@ -254,6 +254,13 @@ public actor StorageManager {
     public static let shared = StorageManager()
     
     nonisolated let diskCache: DiskCacheManager
+    private struct Overview {
+        let totalBytes: UInt64
+        let usedBytes: UInt64
+        let task: Task<[StorageBreakdown]?, Never>
+    }
+
+    private var overview: Overview?
     private let measure: @Sendable ([URL], TimeInterval) async -> [String: UInt64]
     
     private init() {
@@ -273,7 +280,56 @@ public actor StorageManager {
     }
 
     public func getBreakdown(totalBytes: UInt64, usedBytes: UInt64) async -> [StorageBreakdown] {
+        while let running = overview {
+            let rows = await running.task.value
+            guard !Task.isCancelled else { return [] }
+            if let rows, running.totalBytes == totalBytes, running.usedBytes == usedBytes { return rows }
+        }
+        guard !Task.isCancelled else { return [] }
+        let task = startOverview(totalBytes: totalBytes, usedBytes: usedBytes, background: false)
+        return await withTaskCancellationHandler {
+            await task.value ?? []
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    func measureDailyIfNeeded() async {
+        let defaults = UserDefaults.standard
+        let enabled = defaults.object(forKey: StorageBackgroundDecision.enabledKey) as? Bool ?? true
+        guard enabled, overview == nil, !Task.isCancelled else { return }
+        guard let info = await getStorageInfo() else { return }
+        let latest = await StorageSnapshotStore.shared.history().last?.date
+        guard !Task.isCancelled else { return }
+        let now = Date()
+        guard StorageBackgroundDecision.shouldMeasure(
+            now: now, latest: latest,
+            lastAttempt: defaults.object(forKey: StorageBackgroundDecision.lastAttemptKey) as? Date,
+            enabled: defaults.object(forKey: StorageBackgroundDecision.enabledKey) as? Bool ?? true,
+            isRunning: overview != nil, lowPower: StorageBackgroundDecision.isPowerConstrained()
+        ) else { return }
+        defaults.set(now, forKey: StorageBackgroundDecision.lastAttemptKey)
+        let task = startOverview(totalBytes: info.totalBytes, usedBytes: info.usedBytes, background: true)
+        await withTaskCancellationHandler {
+            _ = await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    private func startOverview(totalBytes: UInt64, usedBytes: UInt64,
+                               background: Bool) -> Task<[StorageBreakdown]?, Never> {
+        let task = Task(priority: background ? .background : .userInitiated) {
+            defer { overview = nil }
+            return await measureOverview(totalBytes: totalBytes, usedBytes: usedBytes, background: background)
+        }
+        overview = Overview(totalBytes: totalBytes, usedBytes: usedBytes, task: task)
+        return task
+    }
+
+    private func measureOverview(totalBytes: UInt64, usedBytes: UInt64, background: Bool) async -> [StorageBreakdown]? {
         let generation = await diskCache.generation
+        guard !Task.isCancelled else { return nil }
         guard let startup = StorageStartupVolume.read() else {
             return StorageClassification.breakdown(targets: [], measurement: .init(), total: totalBytes, used: usedBytes)
         }
@@ -283,21 +339,28 @@ public actor StorageManager {
         let targets = StorageClassification.targets(volume: startup.url, home: home)
         let hasFullDiskAccess = FullDiskAccess.isGranted()
         let paths = targets.map(\.url.path)
+        let cached = background ? nil : await diskCache.storageMeasurement(device: startup.device, paths: paths,
+                                                                            hasFullDiskAccess: hasFullDiskAccess)
         let measurement: StorageClassification.Measurement
-        if let cached = await diskCache.storageMeasurement(device: startup.device, paths: paths,
-                                                           hasFullDiskAccess: hasFullDiskAccess) {
+        if let cached {
             measurement = cached
         } else {
-            measurement = await StorageClassification.measure(targets, volume: startup.url)
-            if !Task.isCancelled && !measurement.timeLimited && !measurement.bytes.isEmpty {
-                await diskCache.saveStorageMeasurement(measurement, device: startup.device, paths: paths,
-                                                       hasFullDiskAccess: hasFullDiskAccess, ifGeneration: generation)
-            }
+            measurement = await StorageClassification.measure(targets, volume: startup.url, background: background)
         }
         let volumes = await serviceVolumes
-        guard !Task.isCancelled, await diskCache.generation == generation else { return [] }
-        return StorageClassification.breakdown(targets: targets, measurement: measurement, volumes: volumes,
-                                               total: totalBytes, used: usedBytes, hasFullDiskAccess: hasFullDiskAccess)
+        let rows = StorageClassification.breakdown(targets: targets, measurement: measurement, volumes: volumes,
+                                                   total: totalBytes, used: usedBytes, hasFullDiskAccess: hasFullDiskAccess)
+        guard await diskCache.generation == generation, !Task.isCancelled else { return nil }
+        if cached == nil, !measurement.timeLimited, measurement.probeFailed != true, !measurement.bytes.isEmpty,
+           volumes?.timeLimited != true {
+            await StorageSnapshotStore.shared.record(StorageSnapshot(date: Date(), usedBytes: usedBytes, breakdown: rows))
+            await diskCache.saveStorageMeasurement(measurement, device: startup.device, paths: paths,
+                                                   hasFullDiskAccess: hasFullDiskAccess, ifGeneration: generation)
+            await MainActor.run {
+                NotificationCenter.default.post(name: .storageSnapshotsChanged, object: nil)
+            }
+        }
+        return rows
     }
 
     // MARK: - Cache invalidation

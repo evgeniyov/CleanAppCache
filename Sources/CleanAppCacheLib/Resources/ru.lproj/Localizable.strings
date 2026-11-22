@@ -1221,3 +1221,23 @@
 "storage.apfs.role.VM" = "Виртуальная память";
 "storage.apfs.role.Update" = "Обновление";
 "storage.apfs.summary" = "Сводка по томам";
+
+"storage.changes.title" = "Что изменилось";
+"storage.changes.previous" = "С прошлого замера";
+"storage.changes.collecting" = "Первое сравнение появится после следующего замера в другой день.";
+"storage.changes.rangeFmt" = "%@ — %@";
+"storage.changes.shortHistoryFmt" = "История начинается с %@";
+"storage.changes.used" = "Изменение занятого места";
+"storage.changes.freed" = "Освобождено очистками";
+"storage.changes.trash" = "В корзине после очисток";
+"storage.changes.item" = "Объект";
+"storage.changes.delta" = "Изменение";
+"storage.changes.current" = "Текущий размер";
+"storage.changes.growth" = "Наибольший рост";
+"storage.changes.shrink" = "Наибольшее уменьшение";
+"storage.changes.uncertain" = "Неточная оценка";
+"storage.changes.newFmt" = "Добавлено · %@";
+"storage.changes.removedFmt" = "Удалено · %@";
+"storage.changes.noChanges" = "Нет изменений выше порога измерения.";
+"settings.dailyStorage.title" = "Ежедневный замер в фоне";
+"settings.dailyStorage.detail" = "Измерять занятое место с низким приоритетом, пока CleanAppCache запущен.";

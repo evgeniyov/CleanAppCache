@@ -99,6 +99,7 @@ public struct SettingsView: View {
     // These survive a relaunch (the menu-bar style lives in `MenuBarCard`).
     @AppStorage(TableDensity.storageKey) private var density: TableDensity = .regular
 
+    @AppStorage(StorageBackgroundDecision.enabledKey) private var dailyStorageMeasurement = true
     @AppStorage(MonitorAlerts.enabledKey) private var alertsEnabled = false
     @AppStorage(NotificationManager.lowDiskEnabledKey) private var lowDiskAlertsEnabled = false
     @AppStorage(MonitorAlerts.cpuEnabledKey) private var alertCPUOn = true
@@ -162,6 +163,10 @@ public struct SettingsView: View {
                 alertsCard.staggeredAppear(index: 1)
                 if alertsEnabled { thresholdsCard }
                 lowDiskAlertsCard
+                SettingToggleCard(title: loc.s("settings.dailyStorage.title"),
+                                  detail: loc.s("settings.dailyStorage.detail"),
+                                  isOn: dailyStorageMeasurement,
+                                  toggle: { dailyStorageMeasurement.toggle() })
                 externalIPCard.staggeredAppear(index: 2)
                 MenuBarCard().staggeredAppear(index: 3)
                 densityCard.staggeredAppear(index: 4)

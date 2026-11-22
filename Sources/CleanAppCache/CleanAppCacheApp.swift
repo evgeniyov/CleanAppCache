@@ -2,6 +2,7 @@ import CleanAppCacheLib
 import SwiftUI
 import AppKit
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Keep running after the window closes so the menu-bar widget stays
@@ -17,7 +18,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        StorageBackgroundMeasurement.shared.stop()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        StorageBackgroundMeasurement.shared.start()
         // When the main window closes, fold the app into the menu bar (hide the
         // Dock icon). It comes back when the window is reopened.
         NotificationCenter.default.addObserver(

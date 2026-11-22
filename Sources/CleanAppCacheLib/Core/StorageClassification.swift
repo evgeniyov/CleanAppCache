@@ -12,6 +12,7 @@ enum StorageClassification {
         var bytes: [String: UInt64] = [:]
         var issues: [StorageAccessIssue] = []
         var timeLimited = false
+        var probeFailed: Bool?
 
         var partial: Bool { !issues.isEmpty }
         var accessDenied: Bool { issues.contains { $0.reasonKey == "detail.accessDenied" } }
@@ -130,7 +131,7 @@ enum StorageClassification {
         }
     }
 
-    static func measure(_ targets: [Target], volume: URL, timeout: TimeInterval = 600) async -> Measurement {
+    static func measure(_ targets: [Target], volume: URL, timeout: TimeInterval = 600, background: Bool = false) async -> Measurement {
         var result = Measurement()
         var disk = stat()
         guard stat(volume.path, &disk) == 0 else {
@@ -162,13 +163,15 @@ enum StorageClassification {
         // Keep one inode set across all categories. Do not follow symlinks or
         // descend into mount points from other volumes.
         let response = await DirectorySizeProbe.captureResponse(
-            executable: URL(fileURLWithPath: "/usr/bin/du"),
-            arguments: ["-Pskx"] + roots.map(\.path), timeout: timeout,
+            executable: URL(fileURLWithPath: background ? "/usr/sbin/taskpolicy" : "/usr/bin/du"),
+            arguments: (background ? ["-b", "-g", "throttle", "/usr/bin/du"] : []) + ["-Pskx"] + roots.map(\.path),
+            timeout: timeout,
             // A disk-wide traversal can encounter thousands of denied entries.
             environment: ["LC_ALL": "C"], diagnosticLimit: 1_048_576)
         let parsed = response.map { parse($0.data, roots: roots) } ?? [:]
         result.bytes.merge(parsed) { _, new in new }
         result.timeLimited = response?.timedOut == true
+        result.probeFailed = response == nil || (response?.succeeded == false && parsed.isEmpty)
         // du prints a hard-linked root only once, under its first operand. A
         // clean exit with a root left out means its blocks are already counted.
         if response?.succeeded == true {

@@ -1220,3 +1220,23 @@
 "storage.apfs.role.VM" = "VM";
 "storage.apfs.role.Update" = "Update";
 "storage.apfs.summary" = "Volume overview";
+
+"storage.changes.title" = "What changed";
+"storage.changes.previous" = "Since previous snapshot";
+"storage.changes.collecting" = "The first comparison will appear after the next measurement on a different day.";
+"storage.changes.rangeFmt" = "%@ — %@";
+"storage.changes.shortHistoryFmt" = "History starts on %@";
+"storage.changes.used" = "Used space change";
+"storage.changes.freed" = "Freed by cleanups";
+"storage.changes.trash" = "In Trash from cleanups";
+"storage.changes.item" = "Item";
+"storage.changes.delta" = "Change";
+"storage.changes.current" = "Current size";
+"storage.changes.growth" = "Biggest growth";
+"storage.changes.shrink" = "Biggest shrink";
+"storage.changes.uncertain" = "Uncertain";
+"storage.changes.newFmt" = "New · %@";
+"storage.changes.removedFmt" = "Removed · %@";
+"storage.changes.noChanges" = "No changes above the measurement threshold.";
+"settings.dailyStorage.title" = "Daily background measurement";
+"settings.dailyStorage.detail" = "Measure disk usage at low priority while CleanAppCache is running.";
