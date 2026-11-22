@@ -24,18 +24,23 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
     /// link under the first path it can reach, so a change in this set can move
     /// allocation between folders whose files did not change.
     let unreadablePaths: [String]?
+    /// 2 records every unreadable path. Earlier files kept at most part of the
+    /// list, so their set is known only when nothing in them was partial.
+    let format: Int
+    static let currentFormat = 2
 
     init(date: Date, usedBytes: UInt64, categories: [Category], enumerationFailed: Bool? = nil,
-         unreadablePaths: [String]? = nil) {
+         unreadablePaths: [String]? = nil, format: Int = StorageSnapshot.currentFormat) {
         self.date = date
         self.usedBytes = usedBytes
         self.categories = categories
         self.enumerationFailed = enumerationFailed
         self.unreadablePaths = unreadablePaths
+        self.format = format
     }
 
     private enum CodingKeys: String, CodingKey {
-        case date, usedBytes, categories, enumerationFailed, unreadablePaths
+        case date, usedBytes, categories, enumerationFailed, unreadablePaths, format
         // Written by builds that recorded only the ~/Library failure.
         case libraryEnumerationFailed
     }
@@ -48,6 +53,7 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
         enumerationFailed = try values.decodeIfPresent(Bool.self, forKey: .enumerationFailed)
             ?? values.decodeIfPresent(Bool.self, forKey: .libraryEnumerationFailed)
         unreadablePaths = try values.decodeIfPresent([String].self, forKey: .unreadablePaths)
+        format = try values.decodeIfPresent(Int.self, forKey: .format) ?? 1
     }
 
     func encode(to encoder: Encoder) throws {
@@ -57,6 +63,7 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
         try values.encode(categories, forKey: .categories)
         try values.encodeIfPresent(enumerationFailed, forKey: .enumerationFailed)
         try values.encodeIfPresent(unreadablePaths, forKey: .unreadablePaths)
+        try values.encode(format, forKey: .format)
     }
 
     init(date: Date, usedBytes: UInt64, breakdown: [StorageBreakdown]) {
@@ -95,10 +102,10 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
                   unreadablePaths: unreadable.isEmpty ? nil : unreadable.sorted())
     }
 
-    /// The unreadable paths, or nil when a snapshot that predates the list was
-    /// partial and so its set is unknown.
+    /// The unreadable paths, or nil when an older partial snapshot cannot say
+    /// which paths it missed.
     var knownUnreadable: Set<String>? {
-        if let unreadablePaths { return Set(unreadablePaths) }
+        if format >= Self.currentFormat { return Set(unreadablePaths ?? []) }
         return categories.contains { $0.partial && $0.key != StorageCategory.other.rawValue } ? nil : []
     }
 

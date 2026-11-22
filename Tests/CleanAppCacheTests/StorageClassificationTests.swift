@@ -234,7 +234,8 @@ final class StorageClassificationTests: XCTestCase {
         XCTAssertTrue(StorageSnapshotComparison(from: deniedBefore, to: deniedMore).changes.allSatisfy(\.uncertain))
         let partialLegacy = StorageSnapshot(date: date, usedBytes: used, categories: [
             .init(key: StorageCategory.yourFolders.rawValue, bytes: 100_000_000, partial: true, members: [
-                .init(id: "/zone", name: "Zone", bytes: 100_000_000, partial: false)])])
+                .init(id: "/zone", name: "Zone", bytes: 100_000_000, partial: false)])],
+            unreadablePaths: ["/home/Archive/First"], format: 1)
         let readable = StorageSnapshot(date: date.addingTimeInterval(60), usedBytes: used,
                                        categories: flagged.categories)
         XCTAssertNil(partialLegacy.knownUnreadable)
