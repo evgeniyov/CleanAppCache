@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 APP_NAME = "CleanAppCache"
@@ -162,6 +163,25 @@ def check_localizations(products: Path) -> None:
             run("plutil", "-lint", "--", str(path))
 
 
+def create_image(source: Path, image: Path, attempts: int = 4) -> None:
+    """hdiutil create intermittently fails with "Resource busy" while the
+    system still holds the scratch image it mounts to copy the folder, both on
+    CI runners and locally; the same command succeeds a few seconds later."""
+    for attempt in range(1, attempts + 1):
+        result = subprocess.run(["hdiutil", "create", "-volname", APP_NAME,
+                                 "-srcfolder", str(source), "-format", "UDZO", str(image)],
+                                cwd=ROOT, text=True, capture_output=True)
+        if result.returncode == 0:
+            return
+        busy = "Resource busy" in result.stderr or "Ресурс занят" in result.stderr
+        if not busy or attempt == attempts:
+            print(result.stdout, result.stderr, sep="", file=sys.stderr)
+            fail(f"hdiutil create failed (exit {result.returncode})")
+        image.unlink(missing_ok=True)
+        print(f"   hdiutil reported the resource busy; retrying ({attempt}/{attempts - 1})…")
+        time.sleep(5 * attempt)
+
+
 def make_dmg(developer_id: str, notary_profile: str) -> None:
     step("Creating DMG installer…")
     # Stage on the destination filesystem so publication is a single rename.
@@ -171,8 +191,7 @@ def make_dmg(developer_id: str, notary_profile: str) -> None:
         staged_dmg = Path(stage) / DMG.name
         shutil.copytree(APP, contents / APP.name, symlinks=True)
         (contents / "Applications").symlink_to("/Applications")
-        run("hdiutil", "create", "-volname", APP_NAME,
-            "-srcfolder", str(contents), "-format", "UDZO", str(staged_dmg))
+        create_image(contents, staged_dmg)
 
         if developer_id and notary_profile:
             step("Signing DMG…")
