@@ -209,6 +209,22 @@ final class StorageClassificationTests: XCTestCase {
         let homeSnapshot = StorageSnapshot(date: date.addingTimeInterval(172_800), usedBytes: used, breakdown: homeRows)
         let homeComparison = StorageSnapshotComparison(from: original, to: homeSnapshot)
         XCTAssertFalse(homeComparison.changes.contains { $0.presence == .removed })
+        XCTAssertTrue(homeComparison.changes.allSatisfy(\.uncertain),
+                      "a fallback layout cannot be compared exactly in either direction")
+        XCTAssertTrue(StorageSnapshotComparison(from: homeSnapshot, to: original).changes.allSatisfy(\.uncertain))
+
+        // A folder that cannot be checked is not a folder that is gone.
+        let locked = scratch.appendingPathComponent("locked")
+        let hidden = locked.appendingPathComponent("project")
+        try FileManager.default.createDirectory(at: hidden, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
+        let listed = StorageSnapshot(date: date, usedBytes: used, categories: [
+            .init(key: StorageCategory.yourFolders.rawValue, bytes: 300_000_000, partial: false, members: [
+                .init(id: hidden.path, name: "project", bytes: 300_000_000, partial: false, folderPath: hidden.path)])])
+        let unlisted = StorageSnapshot(date: date.addingTimeInterval(60), usedBytes: used, categories: [
+            .init(key: StorageCategory.yourFolders.rawValue, bytes: 0, partial: false, members: [])])
+        XCTAssertNil(StorageSnapshotComparison(from: listed, to: unlisted).changes.first { $0.member != nil })
 
         let gone = StorageSnapshot(date: date, usedBytes: used, categories: [
             .init(key: StorageCategory.yourFolders.rawValue, bytes: 300_000_000, partial: false, members: [

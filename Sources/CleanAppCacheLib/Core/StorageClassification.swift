@@ -40,8 +40,6 @@ enum StorageClassification {
         "Messages": ("Mail and Messages", "envelope.fill")
     ]
 
-    static let libraryCategoryNames = Set(libraryFolders.values.map { $0.0 } + [StorageCategory.otherLibrary.rawValue])
-
     static func fixedFolderPaths(home: URL) -> [URL] {
         [URL(fileURLWithPath: "/Applications")] +
             (Array(homeFolders.keys) + ["Applications", "Library/Caches", "Library/Logs"])
@@ -94,15 +92,13 @@ enum StorageClassification {
                     return children.map(\.lastPathComponent).sorted().flatMap {
                         visit(URL(fileURLWithPath: prefix + $0))
                     }
-                } catch where path == library {
+                } catch {
                     let posixCode = (error as? POSIXError)?.code
                     let denied = (error as? CocoaError)?.code == .fileReadNoPermission ||
                         posixCode == .EACCES || posixCode == .EPERM
                     enumerationIssue = StorageAccessIssue(path: displayURL.path,
                                                           reasonKey: denied ? "detail.accessDenied" : "detail.unavailable",
-                                                          libraryEnumerationFailed: true)
-                } catch {
-                    // Keep the fallback target when the branch cannot be split.
+                                                          enumerationFailed: true)
                 }
             }
 

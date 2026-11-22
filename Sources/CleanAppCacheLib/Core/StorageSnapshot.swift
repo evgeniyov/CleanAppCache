@@ -19,18 +19,18 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
     let date: Date
     let usedBytes: UInt64
     let categories: [Category]
-    let libraryEnumerationFailed: Bool?
+    let enumerationFailed: Bool?
 
-    init(date: Date, usedBytes: UInt64, categories: [Category], libraryEnumerationFailed: Bool? = nil) {
+    init(date: Date, usedBytes: UInt64, categories: [Category], enumerationFailed: Bool? = nil) {
         self.date = date
         self.usedBytes = usedBytes
         self.categories = categories
-        self.libraryEnumerationFailed = libraryEnumerationFailed
+        self.enumerationFailed = enumerationFailed
     }
 
     init(date: Date, usedBytes: UInt64, breakdown: [StorageBreakdown]) {
-        let libraryEnumerationFailed = breakdown.contains { row in
-            row.accessIssues.contains { $0.libraryEnumerationFailed == true }
+        let enumerationFailed = breakdown.contains { row in
+            row.accessIssues.contains { $0.enumerationFailed == true }
         }
         let categories = breakdown.map { row in
             let members: [Member]
@@ -59,7 +59,7 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
                             partial: row.isResidual || row.isPartial || !row.sizeKnown, members: members)
         }
         self.init(date: date, usedBytes: usedBytes, categories: categories,
-                  libraryEnumerationFailed: libraryEnumerationFailed ? true : nil)
+                  enumerationFailed: enumerationFailed ? true : nil)
     }
 
     static func addBytes(_ lhs: UInt64, _ rhs: UInt64) -> UInt64 {
@@ -166,20 +166,27 @@ struct StorageSnapshotComparison {
     /// is readable. Categories that appear or disappear are therefore never
     /// reported, and a member counts as removed only when its folder is gone now.
     init(from: StorageSnapshot, to: StorageSnapshot, cleanups: [CleanupRecord] = [],
-         pathExists: (String) -> Bool = { path in var info = stat(); return lstat(path, &info) == 0 }) {
+         pathExists: (String) -> Bool = { path in
+             // Unreadable is not missing: only ENOENT proves the folder is gone.
+             var info = stat()
+             return lstat(path, &info) == 0 || errno != ENOENT
+         }) {
         usedDelta = Self.difference(from.usedBytes, to.usedBytes)
         let events = cleanups.filter { $0.date > from.date && $0.date <= to.date }
         freedBytes = events.map(\.freedBytes).reduce(0, StorageSnapshot.addBytes)
         trashedBytes = events.map(\.trashedBytes).reduce(0, StorageSnapshot.addBytes)
         let before = Dictionary(from.categories.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
         let after = Dictionary(to.categories.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        // A folder that could not be listed moves its contents into a fallback
+        // row, so either side's row layout is unreliable and no difference
+        // between the two can be stated exactly.
+        let incomplete = from.enumerationFailed == true || to.enumerationFailed == true
         var rows: [Change] = []
         for category in Set(before.keys).union(after.keys) {
             let old = before[category]
             let new = after[category]
-            let inLibrary = StorageClassification.libraryCategoryNames.contains(category)
-            let oldPartial = old?.partial ?? (inLibrary && from.libraryEnumerationFailed == true)
-            let newPartial = new?.partial ?? (inLibrary && to.libraryEnumerationFailed == true)
+            let oldPartial = (old?.partial ?? false) || incomplete
+            let newPartial = (new?.partial ?? false) || incomplete
             if old != nil, new != nil,
                let change = Self.change(category: category, member: nil, before: old?.bytes, after: new?.bytes,
                                         beforePartial: oldPartial, afterPartial: newPartial) {
@@ -195,10 +202,10 @@ struct StorageSnapshotComparison {
                 if right == nil {
                     // Only a folder that no longer exists was removed; anything
                     // else is a change in how the branch could be read.
-                    guard let path = left?.folderPath, !pathExists(path) else { continue }
+                    guard !incomplete, let path = left?.folderPath, !pathExists(path) else { continue }
                 } else if left == nil {
                     // A member is new only against a side that listed its group completely.
-                    guard old != nil, !oldPartial, from.libraryEnumerationFailed != true else { continue }
+                    guard old != nil, !oldPartial else { continue }
                 }
                 if let change = Self.change(category: category, member: right ?? left,
                                             before: left?.bytes, after: right?.bytes,
