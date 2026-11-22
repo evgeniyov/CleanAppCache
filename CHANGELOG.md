@@ -6,6 +6,21 @@ GitHub Release description (`v1.0.0` and `v1.0` both match `## 1.0`).
 
 ## Unreleased
 
+## 0.9.3 — 2026-11-22
+
+### Improved
+
+- Storage: the distribution now covers the whole disk instead of leaving most
+  of it as "outside measured folders". New rows show the macOS and service
+  volumes (System, Preboot, VM, Recovery), system data (`/Library`,
+  `/private/var`, Homebrew), `~/Library` by section (app data, containers,
+  developer files, mail and messages, iCloud Drive), your own folders in the
+  home folder and hidden folders such as `.cache` or `.npm`, each with a list
+  of what is inside. Whatever cannot be measured is labelled with the reason,
+  for example folders that need Full Disk Access.
+- Storage: the "Can be cleaned" and "Snapshots" tiles measure on their own and
+  show a value, including zero, instead of a dash.
+
 ## 0.9.2 — 2026-11-20
 
 ### Fixed

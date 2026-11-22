@@ -169,6 +169,11 @@ enum StorageClassification {
         let parsed = response.map { parse($0.data, roots: roots) } ?? [:]
         result.bytes.merge(parsed) { _, new in new }
         result.timeLimited = response?.timedOut == true
+        // du prints a hard-linked root only once, under its first operand. A
+        // clean exit with a root left out means its blocks are already counted.
+        if response?.succeeded == true {
+            for root in roots where parsed[root.path] == nil { result.bytes[root.path] = 0 }
+        }
 
         var reportedRoots: Set<String> = []
         var unmatchedDiagnostic = false
@@ -199,7 +204,7 @@ enum StorageClassification {
             unmatchedDiagnostic = unmatchedDiagnostic || response.diagnosticsTruncated ||
                 (!response.succeeded && !response.timedOut && response.diagnostics.isEmpty)
         }
-        for root in roots where !reportedRoots.contains(root.path) && (parsed[root.path] == nil || unmatchedDiagnostic) {
+        for root in roots where !reportedRoots.contains(root.path) && (result.bytes[root.path] == nil || unmatchedDiagnostic) {
             result.issues.append(.init(path: root.path, reasonKey: result.timeLimited ? "detail.timeBudget" : "detail.unavailable"))
         }
         return result

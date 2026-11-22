@@ -71,6 +71,20 @@ final class StorageClassificationTests: XCTestCase {
         XCTAssertLessThan(try XCTUnwrap(link.bytes[linkedRoot.path]), 131072)
     }
 
+    func testHardLinkedTopLevelItemCountsOnceWithoutBecomingUnmeasured() async throws {
+        let first = scratch.appendingPathComponent("first-link")
+        let second = scratch.appendingPathComponent("second-link")
+        try Data(repeating: 67, count: 65536).write(to: first)
+        try FileManager.default.linkItem(at: first, to: second)
+        let result = await StorageClassification.measure([.init(name: "first", icon: "doc", url: first),
+                                                          .init(name: "second", icon: "doc", url: second)],
+                                                         volume: scratch)
+        XCTAssertFalse(result.partial)
+        XCTAssertTrue(result.issues.isEmpty)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(result.bytes[first.path]), 65536)
+        XCTAssertEqual(result.bytes[second.path], 0)
+    }
+
     func testAbsentFolderIsKnownEmptyAndMalformedOutputCannotForgeTargets() async throws {
         let missing = scratch.appendingPathComponent("missing")
         let result = await StorageClassification.measure([.init(name: "missing", icon: "folder", url: missing)], volume: scratch)

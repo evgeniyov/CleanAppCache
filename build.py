@@ -199,7 +199,7 @@ def make_dmg(developer_id: str, notary_profile: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build CleanAppCache.app and CleanAppCache.dmg")
-    parser.add_argument("--version", default=os.environ.get("VERSION", "0.9.2"))
+    parser.add_argument("--version", default=os.environ.get("VERSION", "0.9.3"))
     parser.add_argument("--build-number",
                         default=os.environ.get("BUILD_NUMBER", ""))
     parser.add_argument("--developer-id",

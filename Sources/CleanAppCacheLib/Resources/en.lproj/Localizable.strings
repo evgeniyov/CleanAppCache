@@ -1047,7 +1047,7 @@
 "detail.sizingProgressFmt" = "Checked: %d of %d";
 "detail.partialSize" = "Measured portion";
 
-"storage.folderScopes" = "Categories follow folders, not file types. Apps, builds and caches inside Documents count as Documents. Hard links belong to the first matching folder.";
+"storage.folderScopes" = "Categories follow folders, not file types. Apps, builds and caches inside Documents count as Documents. Hard links belong to the first matching folder. An APFS clone counts in every folder that holds a copy.";
 
 "storage.partialScopes" = "≥ means a lower bound: some folders were unreadable or the scan was incomplete. — means unmeasured. The remaining balance includes these gaps.";
 
@@ -1138,7 +1138,7 @@
 "scan.skipped.managedCache" = "This cache needs its owning tool; use uv cleanup in Developer for uv caches";
 
 "storage.unexplainedBalance" = "Outside measured folders";
-"storage.measuredScopesFmt" = "Measured category folders: %@";
+"storage.measuredScopesFmt" = "Measured across categories: %@";
 "storage.balanceNotInventory" = "The balance above is subtraction, not a measured file list. Explore folders below to identify actual paths.";
 "storage.systemUnmeasured" = "System / APFS allocation: not separately measured. Snapshots, shared blocks and purgeable space cannot be assigned to ordinary folders here.";
 "detail.measuredAtFmt" = "Measured: %@";
