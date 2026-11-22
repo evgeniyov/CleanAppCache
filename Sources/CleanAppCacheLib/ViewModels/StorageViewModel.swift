@@ -52,7 +52,14 @@ public final class StorageViewModel: ObservableObject {
     private var browserDirectoryIdentity: StorageDirectoryIdentity?
     var externalVolume: StorageVolume? { explorer.volume }
     private var diskRootPath: String { externalVolume?.url.path ?? "/" }
-    public var isVirtualRoot: Bool { browserMode == .unassigned && currentDetailPath.isEmpty }
+    var isVolumeList: Bool {
+        if case .volumes? = selectedBreakdown?.contents { return true }
+        return false
+    }
+
+    var isGroupRoot: Bool { selectedBreakdown?.hasMembers == true && currentDetailPath.isEmpty }
+    public var isVirtualRoot: Bool { currentDetailPath.isEmpty && (browserMode == .unassigned || isGroupRoot) }
+    private var isGroupStale = false
     public func contributesToDetailTotal(_ item: StorageItemDetail) -> Bool {
         browserMeasuredPaths.contains(item.url)
     }
@@ -189,10 +196,10 @@ public final class StorageViewModel: ObservableObject {
         guard !isLoading else { return }
         detailCache.removeAll()
         browserSnapshots.entries.removeAll()
-        loadStorageInfo(clearBrowserSnapshots: true)
+        loadStorageInfo(refresh: true)
     }
 
-    private func loadStorageInfo(clearBrowserSnapshots: Bool = false) {
+    private func loadStorageInfo(refresh: Bool = false) {
         guard !isLoading else { return }
         isLoading = true
         scanLog = ["Analyzing directories..."]
@@ -203,7 +210,7 @@ public final class StorageViewModel: ObservableObject {
                     self.isLoading = false
                 }
             }
-            if clearBrowserSnapshots { await manager.diskCache.clearBrowserSnapshots() }
+            if refresh { await manager.diskCache.clearStorageSnapshots() }
             guard !Task.isCancelled else { return }
 
             let generation = await manager.diskCache.generation
@@ -229,9 +236,16 @@ public final class StorageViewModel: ObservableObject {
         }
     }
 
+    func cancelOverview() {
+        overviewTask?.cancel()
+        overviewTask = nil
+        isLoading = false
+        hasLoaded = false
+    }
+
     public func loadDetail(for breakdown: StorageBreakdown) {
-        detailTask?.cancel()
-        detailTask = nil
+        cancelDetailSizing()
+        isGroupStale = false
         browserMode = .category
         detailErrorKey = nil
         detailScanLimited = false
@@ -559,6 +573,18 @@ public final class StorageViewModel: ObservableObject {
         hasMeasuredEmptyListing = false
         detailScanLimited = false
 
+        if isGroupRoot, let members = selectedBreakdown?.members {
+            detailItems = members
+            browserMeasuredPaths = Set(members.map(\.url))
+            detailMeasuredAt = storageMeasuredAt
+            isDetailSnapshotStale = isGroupStale
+            isLoadingDetail = false
+            isSizingDetail = false
+            sizingCount = members.count
+            sizingTotal = members.count
+            return
+        }
+
         if let cached = detailCache[path] {
             detailItems = cached
             browserMeasuredPaths = Set(cached.map(\.url))
@@ -662,10 +688,8 @@ public final class StorageViewModel: ObservableObject {
     }
 
     private func invalidateStorageState() {
-        hasLoaded = false
-        overviewTask?.cancel()
-        overviewTask = nil
-        isLoading = false
+        cancelOverview()
+        isGroupStale = selectedBreakdown?.hasMembers == true
 
         // Keep visible rows for orientation, but reject in-flight measurements
         // and cached navigation snapshots produced before the filesystem change.

@@ -284,6 +284,16 @@ public enum StorageCategory: String, CaseIterable, Sendable {
     case desktop      = "Desktop"
     case userApps     = "User Apps"
     case userLogs     = "User Logs"
+    case applicationSupport = "Application Support"
+    case containers   = "Containers"
+    case developer    = "Developer"
+    case mailMessages = "Mail and Messages"
+    case iCloudDrive  = "iCloud Drive"
+    case otherLibrary = "Other Library"
+    case yourFolders  = "Your folders"
+    case hiddenFolders = "Hidden folders"
+    case systemData   = "System Data"
+    case serviceVolumes = "macOS and Service Volumes"
 
     /// Localization key for the display name. The project already translates
     /// the data layer's raw names under `bk.<name>`, so the category reuses
@@ -303,6 +313,16 @@ public enum StorageCategory: String, CaseIterable, Sendable {
         Color(hex: 0x9A9AA2),  // Desktop
         Color(hex: 0x4AA0A0),  // User Apps
         Color(hex: 0xB08A3F),  // User Logs
+        Color(hex: 0x526ECC),  // Application Support
+        Color(hex: 0xBA6C46),  // Containers
+        Color(hex: 0x7B56B0),  // Developer
+        Color(hex: 0xBB5678),  // Mail and Messages
+        Color(hex: 0x398FB5),  // iCloud Drive
+        Color(hex: 0xA56B90),  // Other Library
+        Color(hex: 0x278777),  // Your folders
+        Color(hex: 0xBA813C),  // Hidden folders
+        Color(hex: 0x65788F),  // System Data
+        Color(hex: 0x666799),  // macOS and Service Volumes
     ]
 
     var paletteIndex: Int {

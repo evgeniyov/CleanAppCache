@@ -11,8 +11,16 @@ extension StorageItemDetail {
         sizeKnown ? (isPartial ? "≥ " : "") + formattedSize : Fmt.none
     }
 
+    @MainActor
+    func storageName(_ loc: Localizer) -> String {
+        guard let volume else { return name }
+        let roles = volume.roles.map { loc.opt("storage.apfs.role.\($0)") ?? $0 }.joined(separator: ", ")
+        if volume.name.isEmpty { return roles.isEmpty ? name : roles }
+        return roles.isEmpty || volume.name == roles ? name : loc.f("storage.apfs.volumeFmt", name, roles)
+    }
+
     var canRevealInStorage: Bool {
-        path != "/SystemData" && unavailableReason != "detail.externalVolume"
+        volume == nil && path != "/SystemData" && unavailableReason != "detail.externalVolume"
     }
 
     var canPreviewInStorage: Bool {
@@ -88,6 +96,7 @@ struct DetailListRow: View {
 
     private var displayName: String {
         if item.path == "/SystemData" { return loc.s("detail.systemData") }
+        if item.volume != nil { return item.storageName(loc) }
         if showPath {
             let home = FileManager.default.homeDirectoryForCurrentUser.path
             return item.path.hasPrefix(home + "/") ? "~" + item.path.dropFirst(home.count) : item.path
@@ -103,6 +112,7 @@ struct DetailListRow: View {
 
     private var icon: String {
         if item.path == "/SystemData" { return "lock.shield" }
+        if item.volume != nil { return "internaldrive.fill" }
         return item.isDirectory ? "folder.fill" : "doc"
     }
 }
@@ -117,7 +127,7 @@ struct StorageDetailPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            CardHeader(title: loc.s(viewModel.selectedDetailItem == nil ? "detail.folderOverview" : "detail.itemDetails"))
+            CardHeader(title: overviewTitle)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -148,7 +158,13 @@ struct StorageDetailPanel: View {
         }
     }
 
+    private var overviewTitle: String {
+        if viewModel.selectedDetailItem != nil { return loc.s("detail.itemDetails") }
+        return loc.s(viewModel.isVolumeList ? "storage.apfs.summary" : "detail.folderOverview")
+    }
+
     private var folderName: String {
+        if viewModel.isGroupRoot, let group = viewModel.selectedBreakdown { return loc.name(group.name) }
         if viewModel.isVirtualRoot { return loc.s("detail.outsideCategories") }
         if viewModel.currentDetailPath == "/" { return StorageInfo.volumeName }
         if let volume = viewModel.externalVolume, volume.url.path == viewModel.currentDetailPath {
@@ -164,7 +180,9 @@ struct StorageDetailPanel: View {
             .foregroundStyle(Palette.textPrimary)
             .textSelection(.enabled)
 
-        if !viewModel.detailItems.isEmpty {
+        if viewModel.isVolumeList {
+            note(Fmt.plural("plural.items", viewModel.detailItems.count))
+        } else if !viewModel.detailItems.isEmpty {
             let folders = viewModel.detailItems.count(where: \.isDirectory)
             let files = viewModel.detailItems.count - folders
             let counts = [Fmt.plural("plural.folders", folders), Fmt.plural("plural.files", files)]
@@ -211,7 +229,7 @@ struct StorageDetailPanel: View {
 
     @ViewBuilder
     private func itemDetails(_ item: StorageItemDetail) -> some View {
-        Text(item.path == "/SystemData" ? loc.s("detail.systemData") : item.name)
+        Text(item.path == "/SystemData" ? loc.s("detail.systemData") : item.storageName(loc))
             .font(Typo.bodyStrong)
             .foregroundStyle(Palette.textPrimary)
             .textSelection(.enabled)

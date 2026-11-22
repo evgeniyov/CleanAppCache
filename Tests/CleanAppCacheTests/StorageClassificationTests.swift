@@ -5,8 +5,11 @@ import XCTest
 final class StorageClassificationTests: XCTestCase {
     private var scratch: URL!
     override func setUpWithError() throws {
-        scratch = FileManager.default.temporaryDirectory.appendingPathComponent("classification-\(UUID().uuidString)").resolvingSymlinksInPath()
-        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("classification-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let path = try XCTUnwrap(realpath(directory.path, nil))
+        defer { free(path) }
+        scratch = URL(fileURLWithPath: String(cString: path))
     }
     override func tearDownWithError() throws { try FileManager.default.removeItem(at: scratch) }
     private func target(_ name: String) throws -> StorageClassification.Target {
@@ -23,14 +26,14 @@ final class StorageClassificationTests: XCTestCase {
         let measured = StorageClassification.Measurement(bytes: [apps.url.path: 200, docs.url.path: 300])
         let rows = StorageClassification.breakdown(targets: [apps, docs, nested], measurement: measured, total: 1000, used: 800)
         XCTAssertEqual(rows.reduce(0) { $0 + $1.bytes }, 800)
-        XCTAssertEqual(rows.first { $0.name == "Other" }?.bytes, 300)
+        XCTAssertEqual(rows.first { $0.remainderReason == .unmeasured }?.bytes, 300)
         XCTAssertEqual(rows.first { $0.isResidual }?.path, "")
         XCTAssertFalse(rows.contains { $0.name == "Nested apps" })
     }
 
     func testUnknownAndPartialNeverBecomeMeasuredZero() throws {
         let docs = try target("Documents")
-        let rows = StorageClassification.breakdown(targets: [docs], measurement: .init(partial: true), total: 1000, used: 800)
+        let rows = StorageClassification.breakdown(targets: [docs], measurement: .init(), total: 1000, used: 800)
         let row = try XCTUnwrap(rows.first { !$0.isResidual })
         XCTAssertFalse(row.sizeKnown)
         XCTAssertTrue(row.isPartial)
@@ -42,7 +45,7 @@ final class StorageClassificationTests: XCTestCase {
         let docs = try target("Documents")
         let rows = StorageClassification.breakdown(targets: [docs], measurement: .init(bytes: [docs.url.path: 900]), total: 1000, used: 800)
         XCTAssertTrue(rows.allSatisfy { !$0.reconciled })
-        XCTAssertFalse(try XCTUnwrap(rows.first { $0.isResidual }).sizeKnown)
+        XCTAssertFalse(rows.contains { $0.isResidual })
         XCTAssertEqual(rows.first { !$0.isResidual }?.bytes, 900, "do not silently scale folder sizes")
     }
 
@@ -63,9 +66,9 @@ final class StorageClassificationTests: XCTestCase {
         XCTAssertLessThan(total, 131072, "hard link and external symlink must not add file allocation twice")
         let linkedRoot = scratch.appendingPathComponent("symlink-category")
         try FileManager.default.createSymbolicLink(at: linkedRoot, withDestinationURL: outside.url)
-        let skipped = await StorageClassification.measure([.init(name: "linked", icon: "folder", url: linkedRoot)], volume: scratch)
-        XCTAssertTrue(skipped.partial)
-        XCTAssertNil(skipped.bytes[linkedRoot.path])
+        let link = await StorageClassification.measure([.init(name: "linked", icon: "folder", url: linkedRoot)], volume: scratch)
+        XCTAssertFalse(link.partial)
+        XCTAssertLessThan(try XCTUnwrap(link.bytes[linkedRoot.path]), 131072)
     }
 
     func testAbsentFolderIsKnownEmptyAndMalformedOutputCannotForgeTargets() async throws {
@@ -82,6 +85,125 @@ final class StorageClassificationTests: XCTestCase {
         let captured = try XCTUnwrap(response)
         XCTAssertFalse(captured.succeeded)
         XCTAssertEqual(StorageClassification.parse(captured.data, roots: [URL(fileURLWithPath: "/synthetic")]), ["/synthetic": 12288])
+    }
+
+    func testStartupPartitionFindsEveryGroupAndDataBranch() throws {
+        let directories = [
+            "Applications", "Users/me/Applications", "Users/me/Documents", "Users/me/Downloads",
+            "Users/me/Desktop", "Users/me/Movies", "Users/me/Music", "Users/me/Pictures",
+            "Users/me/Library/Application Support", "Users/me/Library/Caches", "Users/me/Library/Logs",
+            "Users/me/Library/Containers", "Users/me/Library/Group Containers", "Users/me/Library/Developer",
+            "Users/me/Library/Mail", "Users/me/Library/Messages", "Users/me/Library/Mobile Documents",
+            "Users/me/Library/Other", "Users/me/Projects", "Users/me/.cache", "Users/Shared", "Users/another",
+            "Library", "private/var", "private/etc", "usr/local", "usr/share", "opt", ".Spotlight-V100"
+        ]
+        for entry in directories { _ = try target(entry) }
+        for entry in ["Users/me/.localfile", "Users/me/notes.txt"] {
+            XCTAssertTrue(FileManager.default.createFile(atPath: scratch.appendingPathComponent(entry).path, contents: Data()))
+        }
+        let targets = StorageClassification.targets(volume: scratch, home: scratch.appendingPathComponent("Users/me"))
+        let all = Set(targets.map { String($0.url.path.dropFirst(scratch.path.count + 1)) })
+        XCTAssertEqual(all, Set(directories + ["Users/me/.localfile", "Users/me/notes.txt"]))
+        XCTAssertEqual(StorageClassification.disjoint(targets).count, all.count)
+        let logical = StorageClassification.targets(volume: scratch, home: URL(fileURLWithPath: "/Users/me"))
+        XCTAssertEqual(logical.map(\.url.path), targets.map(\.url.path))
+        XCTAssertEqual(logical.map(\.name), targets.map(\.name))
+        let aliased = StorageClassification.targets(volume: scratch, home: scratch.appendingPathComponent("Users/me")) { parent in
+            try FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil).map {
+                URL(fileURLWithPath: "/different/parent/" + $0.lastPathComponent)
+            }
+        }
+        XCTAssertEqual(aliased.map(\.url.path), targets.map(\.url.path))
+        XCTAssertEqual(aliased.map(\.name), targets.map(\.name))
+        let measurement = StorageClassification.Measurement(bytes: Dictionary(uniqueKeysWithValues: targets.map {
+            ($0.url.path, UInt64(100))
+        }))
+        let used = UInt64(targets.count) * 100
+        let rows = StorageClassification.breakdown(targets: targets, measurement: measurement, total: 10_000, used: used)
+        XCTAssertEqual(rows.reduce(0) { $0 + $1.bytes }, used)
+        XCTAssertFalse(rows.contains { $0.isResidual })
+        func names(_ category: String) -> Set<String> {
+            Set(rows.first { $0.name == category }?.members?.map(\.name) ?? [])
+        }
+        XCTAssertEqual(rows.count, 18)
+        XCTAssertEqual(names("Applications"), ["Applications"])
+        XCTAssertEqual(rows.first { $0.name == "Applications" }?.members?.count, 2)
+        XCTAssertEqual(names("Your folders"), ["Projects", "notes.txt"])
+        XCTAssertEqual(names("Hidden folders"), [".cache", ".localfile"])
+        XCTAssertEqual(names("Containers"), ["Containers", "Group Containers"])
+        XCTAssertEqual(names("Mail and Messages"), ["Mail", "Messages"])
+        XCTAssertEqual(names("Other Library"), ["Other"])
+        XCTAssertEqual(names("System Data"), ["Library", "var", "etc", "local", "share", "opt", "Shared", "another", ".Spotlight-V100"])
+        XCTAssertEqual(rows.first { $0.name == "Developer" }?.path, scratch.appendingPathComponent("Users/me/Library/Developer").path)
+    }
+
+    func testOnlyAffectedRowsArePartialAndRemainderExplainsDenial() throws {
+        let docs = try target("Documents"), apps = try target("Applications")
+        let measurement = StorageClassification.Measurement(
+            bytes: [docs.url.path: 200, apps.url.path: 300],
+            issues: [.init(path: docs.url.appendingPathComponent("Denied").path, reasonKey: "detail.accessDenied")])
+        let rows = StorageClassification.breakdown(targets: [docs, apps], measurement: measurement, total: 1_000, used: 800)
+        XCTAssertEqual(rows.first { $0.remainderReason == .protected }?.bytes, 300)
+        XCTAssertEqual(rows.first { $0.name == docs.name }?.isPartial, true)
+        XCTAssertEqual(rows.first { $0.name == apps.name }?.isPartial, false)
+        let granted = StorageClassification.breakdown(targets: [docs, apps], measurement: measurement,
+                                                      total: 1_000, used: 800, hasFullDiskAccess: true)
+        XCTAssertEqual(granted.first { $0.remainderReason == .unmeasured }?.bytes, 300)
+    }
+
+    func testAPFSPlistKeepsOnlyOtherVolumesOfStartupContainer() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict><key>Containers</key><array>
+        <dict><key>Volumes</key><array>
+        <dict><key>DeviceIdentifier</key><string>disk1s1</string><key>CapacityInUse</key><integer>900</integer></dict>
+        </array></dict>
+        <dict><key>Volumes</key><array>
+        <dict><key>DeviceIdentifier</key><string>disk3s5</string><key>Roles</key><array><string>Data</string></array>
+        <key>CapacityInUse</key><integer>500</integer></dict>
+        <dict><key>DeviceIdentifier</key><string>disk3s1</string><key>Name</key><string>macOS</string>
+        <key>Roles</key><array><string>System</string></array><key>CapacityInUse</key><integer>140</integer></dict>
+        <dict><key>DeviceIdentifier</key><string>disk3s3</string><key>Name</key><string>Recovery</string>
+        <key>Roles</key><array><string>Recovery</string></array><key>CapacityInUse</key><integer>20</integer></dict>
+        <dict><key>DeviceIdentifier</key><string>disk3s7</string><key>Name</key><string>Locked</string></dict>
+        </array></dict>
+        </array></dict></plist>
+        """
+        let data = Data(plist.utf8)
+        let volumes = try XCTUnwrap(StorageAPFSVolumes.parse(data, dataDevice: "disk3s5"))
+        XCTAssertTrue(volumes.isPartial)
+        XCTAssertEqual(volumes.members.map(\.device), ["disk3s1", "disk3s3", "disk3s7"])
+        XCTAssertEqual(volumes.members.map(\.roles), [["System"], ["Recovery"], []])
+        XCTAssertNil(StorageAPFSVolumes.parse(data, dataDevice: "disk7s5"))
+        let rows = StorageClassification.breakdown(targets: [], measurement: .init(), volumes: volumes, total: 1_000, used: 500)
+        XCTAssertEqual(rows.first { $0.isResidual }?.bytes, 340)
+        let row = try XCTUnwrap(rows.first { !$0.isResidual })
+        XCTAssertEqual(row.bytes, 160)
+        XCTAssertTrue(row.isPartial)
+        XCTAssertEqual(row.members?.first?.size, 140)
+        XCTAssertEqual(row.members?.last?.sizeKnown, false)
+    }
+
+    func testOverviewCacheKeepsBatchTogetherAndRejectsOldGeneration() async throws {
+        let cache = DiskCacheManager(directory: scratch)
+        let paths = ["/Volumes/fixture/first", "/Volumes/fixture/second"]
+        let generation = await cache.generation
+        let measurement = StorageClassification.Measurement(bytes: [paths[0]: 80, paths[1]: 20])
+        await cache.saveStorageMeasurement(measurement, device: "disk9s1", paths: paths,
+                                           hasFullDiskAccess: false, ifGeneration: generation)
+        let restored = DiskCacheManager(directory: scratch)
+        let saved = await restored.storageMeasurement(device: "disk9s1", paths: paths, hasFullDiskAccess: false)
+        XCTAssertEqual(saved?.bytes, measurement.bytes)
+        let changedAccess = await restored.storageMeasurement(device: "disk9s1", paths: paths, hasFullDiskAccess: true)
+        XCTAssertNil(changedAccess)
+        await cache.invalidate(under: paths[0])
+        await cache.saveStorageMeasurement(measurement, device: "disk9s1", paths: paths,
+                                           hasFullDiskAccess: false, ifGeneration: generation)
+        let invalidated = await cache.storageMeasurement(device: "disk9s1", paths: paths, hasFullDiskAccess: false)
+        let afterRestart = await DiskCacheManager(directory: scratch).storageMeasurement(
+            device: "disk9s1", paths: paths, hasFullDiskAccess: false)
+        XCTAssertNil(invalidated)
+        XCTAssertNil(afterRestart)
     }
 
     func testSelectingResidualCancelsPriorDetailsWithoutScanningRoot() async throws {

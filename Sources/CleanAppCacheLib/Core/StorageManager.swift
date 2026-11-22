@@ -5,16 +5,14 @@ public struct StorageInfo: Sendable {
     public let freeBytes: UInt64
     public let usedBytes: UInt64
 
-    /// The single definition of "free space" for the whole app.
+    /// User-available capacity for low-disk alerts and free-space history.
     ///
     /// `volumeAvailableCapacityForImportantUsage` counts purgeable space — local
     /// snapshots and evictable caches — as available, which is what Finder and
     /// System Settings report. Plain `volumeAvailableCapacity` does not, and on
     /// this machine the two disagree by 17 GB (52.6 vs 35.3 of 245.1). Every
-    /// caller must use the same one, or the app tells the user two different
-    /// numbers: if the Storage screen used the larger figure and the menu bar's
-    /// low-disk alert the smaller, the warning could fire at "9 % free" while
-    /// the Storage screen showed a fifth of the disk empty.
+    /// caller of this API uses the same figure. The startup Storage breakdown
+    /// uses physical capacity so allocated volume and folder bytes reconcile.
     public static func read(volume url: URL = URL(fileURLWithPath: "/")) -> StorageInfo? {
         guard let values = try? url.resourceValues(forKeys: [
             .volumeTotalCapacityKey,
@@ -86,8 +84,48 @@ public struct StorageBreakdown: Identifiable, Sendable {
     public let name: String
     public let icon: String
     public let bytes: UInt64
-    public let path: String
-    
+    enum Contents: Sendable {
+        case folder(String)
+        case group([StorageItemDetail])
+        case volumes([StorageAPFSVolume])
+        case remainder(RemainderReason)
+    }
+
+    enum RemainderReason: String, Sendable {
+        case protected = "Protected Space"
+        case unmeasured = "Unmeasured Space"
+    }
+
+    let contents: Contents
+
+    public var path: String {
+        if case let .folder(path) = contents { return path }
+        return ""
+    }
+
+    var remainderReason: RemainderReason? {
+        if case let .remainder(reason) = contents { return reason }
+        return nil
+    }
+
+    var hasMembers: Bool {
+        switch contents {
+        case .group, .volumes: return true
+        case .folder, .remainder: return false
+        }
+    }
+
+    var members: [StorageItemDetail]? {
+        switch contents {
+        case let .group(members): return members
+        case let .volumes(volumes):
+            return volumes.map { StorageItemDetail(url: URL(fileURLWithPath: "/dev/" + $0.device),
+                                                   size: $0.bytes ?? 0, isDirectory: false,
+                                                   sizeKnown: $0.bytes != nil, volume: $0) }
+        case .folder, .remainder: return nil
+        }
+    }
+
     public var formattedSize: String {
         sizeKnown ? Fmt.bytes(Int64(min(bytes, UInt64(Int64.max)))) : Fmt.none
     }
@@ -96,8 +134,8 @@ public struct StorageBreakdown: Identifiable, Sendable {
 
     public let sizeKnown: Bool
     public let isPartial: Bool
-    public let isResidual: Bool
-    public let reconciled: Bool
+    public var isResidual: Bool { remainderReason != nil }
+    public internal(set) var reconciled: Bool
     public let accessIssues: [StorageAccessIssue]
 
     public init(name: String, icon: String, bytes: UInt64, path: String, percentOfTotal: Double,
@@ -106,12 +144,24 @@ public struct StorageBreakdown: Identifiable, Sendable {
         self.name = name
         self.icon = icon
         self.bytes = bytes
-        self.path = path
+        self.contents = isResidual ? .remainder(.unmeasured) : .folder(path)
         self.percentOfTotal = percentOfTotal
         self.sizeKnown = sizeKnown
         self.isPartial = isPartial
-        self.isResidual = isResidual
         self.reconciled = reconciled
+        self.accessIssues = accessIssues
+    }
+
+    init(name: String, icon: String, contents: Contents, bytes: UInt64, total: UInt64,
+         sizeKnown: Bool, isPartial: Bool, accessIssues: [StorageAccessIssue] = []) {
+        self.name = name
+        self.icon = icon
+        self.contents = contents
+        self.bytes = bytes
+        self.percentOfTotal = total > 0 ? Double(bytes) / Double(total) : 0
+        self.sizeKnown = sizeKnown
+        self.isPartial = isPartial
+        self.reconciled = true
         self.accessIssues = accessIssues
     }
 }
@@ -122,6 +172,7 @@ public struct StorageAccessIssue: Codable, Sendable {
 }
 
 public struct StorageItemDetail: Codable, Identifiable, Sendable {
+    let volume: StorageAPFSVolume?
     public let id: UUID
     public let url: URL
     public let size: UInt64
@@ -150,6 +201,7 @@ public struct StorageItemDetail: Codable, Identifiable, Sendable {
                 modified: Date? = nil, created: Date? = nil, accessed: Date? = nil,
                 isPartial: Bool = false, unavailableReason: String? = nil, hasSharedAllocation: Bool = false,
                 accessIssues: [StorageAccessIssue] = []) {
+        self.volume = nil
         self.id = id
         self.url = url
         self.size = size
@@ -164,13 +216,32 @@ public struct StorageItemDetail: Codable, Identifiable, Sendable {
         self.accessed = accessed
     }
 
+    init(url: URL, size: UInt64, isDirectory: Bool, sizeKnown: Bool, volume: StorageAPFSVolume) {
+        self.volume = volume
+        id = UUID()
+        self.url = url
+        self.size = size
+        self.isDirectory = isDirectory
+        self.sizeKnown = sizeKnown
+        isPartial = !sizeKnown
+        unavailableReason = nil
+        accessIssues = []
+        hasSharedAllocation = false
+        modified = nil
+        created = nil
+        accessed = nil
+    }
+
     func updatingSize(_ measured: UInt64?) -> StorageItemDetail {
         StorageItemDetail(id: id, url: url, size: measured ?? 0, isDirectory: isDirectory,
                           sizeKnown: measured != nil, modified: modified, created: created, accessed: accessed,
                           isPartial: isPartial, unavailableReason: unavailableReason, hasSharedAllocation: hasSharedAllocation, accessIssues: accessIssues)
     }
 
-    public var name: String { url.lastPathComponent }
+    public var name: String {
+        if let volume, !volume.name.isEmpty { return volume.name }
+        return volume?.roles.first ?? url.lastPathComponent
+    }
     public var path: String { url.path }
 
     public var formattedSize: String {
@@ -198,19 +269,35 @@ public actor StorageManager {
     }
 
     public func getStorageInfo() async -> StorageInfo? {
-        guard let info = StorageInfo.read() else {
-            Log.error("Failed to get storage info for /")
-            return nil
-        }
-        return info
+        StorageStartupVolume.read()?.capacity ?? StorageInfo.read()
     }
-    
+
     public func getBreakdown(totalBytes: UInt64, usedBytes: UInt64) async -> [StorageBreakdown] {
+        let generation = await diskCache.generation
+        guard let startup = StorageStartupVolume.read() else {
+            return StorageClassification.breakdown(targets: [], measurement: .init(), total: totalBytes, used: usedBytes)
+        }
+
+        async let serviceVolumes = StorageAPFSVolumes.read(startup: startup)
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let targets = StorageClassification.targets(home: home)
-        let measurement = await StorageClassification.measure(targets, volume: home)
-        return StorageClassification.breakdown(targets: targets, measurement: measurement,
-                                               total: totalBytes, used: usedBytes)
+        let targets = StorageClassification.targets(volume: startup.url, home: home)
+        let hasFullDiskAccess = FullDiskAccess.isGranted()
+        let paths = targets.map(\.url.path)
+        let measurement: StorageClassification.Measurement
+        if let cached = await diskCache.storageMeasurement(device: startup.device, paths: paths,
+                                                           hasFullDiskAccess: hasFullDiskAccess) {
+            measurement = cached
+        } else {
+            measurement = await StorageClassification.measure(targets, volume: startup.url)
+            if !Task.isCancelled && !measurement.timeLimited && !measurement.bytes.isEmpty {
+                await diskCache.saveStorageMeasurement(measurement, device: startup.device, paths: paths,
+                                                       hasFullDiskAccess: hasFullDiskAccess, ifGeneration: generation)
+            }
+        }
+        let volumes = await serviceVolumes
+        guard !Task.isCancelled, await diskCache.generation == generation else { return [] }
+        return StorageClassification.breakdown(targets: targets, measurement: measurement, volumes: volumes,
+                                               total: totalBytes, used: usedBytes, hasFullDiskAccess: hasFullDiskAccess)
     }
 
     // MARK: - Cache invalidation

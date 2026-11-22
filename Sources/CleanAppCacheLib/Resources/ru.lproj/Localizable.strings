@@ -263,12 +263,12 @@
 "bk.Documents" = "Документы";
 "bk.Downloads" = "Загрузки";
 "bk.Desktop" = "Рабочий стол";
-"bk.User Caches" = "Кэш пользователя";
-"bk.User Logs" = "Логи пользователя";
+"bk.User Caches" = "Кэши";
+"bk.User Logs" = "Журналы";
 "bk.Movies" = "Фильмы";
 "bk.Music" = "Музыка";
 "bk.Pictures" = "Изображения";
-"bk.Other" = "Вне измеренных папок";
+"bk.Other" = "Другое";
 
 /* Startup */
 "startup.runAtLoad" = "При входе";
@@ -1195,3 +1195,29 @@
 "searchProfiles.saveAction" = "Сохранить";
 "searchProfiles.name" = "Название профиля";
 "searchProfiles.remove" = "Удалить профиль";
+
+"bk.Application Support" = "Данные приложений";
+"bk.Containers" = "Контейнеры";
+"bk.Developer" = "Xcode и разработка";
+"bk.Mail and Messages" = "Почта и сообщения";
+"bk.iCloud Drive" = "iCloud Drive";
+"bk.Other Library" = "Остальное в Library";
+"bk.Your folders" = "Ваши папки";
+"bk.Hidden folders" = "Скрытые папки";
+"bk.System Data" = "Системные данные";
+"bk.macOS and Service Volumes" = "macOS и служебные тома";
+"bk.Protected Space" = "Защищено — нужен полный доступ";
+"bk.Unmeasured Space" = "Снапшоты, очищаемое и недоступное";
+"storage.summaryLoading" = "Загрузка…";
+"storage.measuringDistribution" = "Измеряем папки и тома. Это может занять несколько минут.";
+"storage.distributionEmpty" = "Обновите, чтобы измерить папки и тома.";
+"storage.remainderProtected" = "Часть папок недоступна. Дайте CleanAppCache полный доступ к диску и повторите измерение. В остаток также могут входить снапшоты, очищаемое место и метаданные файловой системы.";
+"storage.remainderUnmeasured" = "В остаток могут входить снапшоты APFS, очищаемое место, метаданные и недоступные элементы.";
+"storage.apfs.volumeFmt" = "%@ (%@)";
+"storage.apfs.role.System" = "Система";
+"storage.apfs.role.Data" = "Данные";
+"storage.apfs.role.Preboot" = "Предзагрузка";
+"storage.apfs.role.Recovery" = "Восстановление";
+"storage.apfs.role.VM" = "Виртуальная память";
+"storage.apfs.role.Update" = "Обновление";
+"storage.apfs.summary" = "Сводка по томам";

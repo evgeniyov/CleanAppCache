@@ -63,7 +63,10 @@ public struct StorageView: View {
             }
         }
         .background(Palette.background)
-        .onAppear { viewModel.loadStorageInfoIfNeeded() }
+        .onAppear {
+            viewModel.loadStorageInfoIfNeeded()
+            refreshSummary()
+        }
         .task { await FreeSpaceHistory.shared.capture() }
         .task(id: volumeRefresh) { await updateVolumes() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in
@@ -99,7 +102,7 @@ public struct StorageView: View {
     }
 
     private var rows: [StorageBreakdown] {
-        viewModel.breakdown.filter { $0.bytes > 0 || !$0.sizeKnown || $0.isResidual }.sorted { $0.bytes > $1.bytes }
+        viewModel.breakdown.filter { $0.bytes > 0 || !$0.sizeKnown || $0.isPartial }.sorted { $0.bytes > $1.bytes }
     }
 
     private var volumePicker: some View {
@@ -236,10 +239,17 @@ public struct StorageView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// What Smart Cleanup found, if it has run. The two screens answer adjacent
-    /// questions and the number is already computed — showing "—" until then is
-    /// honest, inventing an estimate here would not be.
+    private func refreshSummary(force: Bool = false) {
+        if !dashboard.isScanning && (force || dashboard.scanResult == nil) { dashboard.startScan() }
+        if force || !systemData.hasScanned { systemData.scan() }
+    }
+
+    private var loadingMetric: Fmt.Value {
+        Fmt.Value(number: loc.s("storage.summaryLoading"), unit: nil)
+    }
+
     private var cleanable: Fmt.Value {
+        if dashboard.isScanning { return loadingMetric }
         guard dashboard.scanResult != nil else {
             return Fmt.Value(number: Fmt.none, unit: nil)
         }
@@ -247,9 +257,9 @@ public struct StorageView: View {
     }
 
     private var snapshots: Fmt.Value {
-        let count = systemData.snapshots.count
-        guard count > 0 else { return Fmt.Value(number: Fmt.none, unit: nil) }
-        return Fmt.Value(number: Fmt.count(count), unit: loc.s("storage.snapshotsUnit"))
+        if systemData.isScanning || !systemData.hasScanned { return loadingMetric }
+        guard !systemData.snapshotsUnreadable else { return Fmt.Value(number: Fmt.none, unit: nil) }
+        return Fmt.Value(number: Fmt.count(systemData.snapshots.count), unit: loc.s("storage.snapshotsUnit"))
     }
 
     // MARK: Distribution
@@ -271,23 +281,36 @@ public struct StorageView: View {
                 RefreshStamp(text: refreshStamp,
                              label: loc.s("common.rescan.tooltip")) {
                     lastRefresh = Date()
-                    viewModel.reloadStorageInfo()
+                    if !viewModel.isLoading {
+                        viewModel.reloadStorageInfo()
+                        refreshSummary(force: true)
+                    }
                 }
             }
             StorageBar(segments: segments(info), total: info.totalBytes, onSelect: selectSegment)
-            if let date = viewModel.storageMeasuredAt {
+            if viewModel.isLoading {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(loc.s("storage.measuringDistribution"))
+                        .font(Typo.secondary)
+                        .foregroundStyle(Palette.textSecondary)
+                    Spacer()
+                    Button(loc.s("common.cancel")) { viewModel.cancelOverview() }
+                        .buttonStyle(.secondaryAction(height: Metric.tapTarget))
+                }
+            } else if let date = viewModel.storageMeasuredAt {
                 Text(loc.f("detail.measuredAtFmt", loc.date(date) + " " + Fmt.clock(date)))
                     .font(Typo.micro).foregroundStyle(Palette.textTertiary)
             }
-            Text(loc.s(viewModel.breakdown.contains { !$0.reconciled } ? "storage.allocationMismatch" : "storage.folderScopes"))
-                .font(Typo.micro)
-                .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if viewModel.breakdown.contains(where: { !$0.reconciled }) {
+                Text(loc.s("storage.allocationMismatch"))
+                    .font(Typo.micro)
+                    .foregroundStyle(Palette.textSecondary)
+            }
             if viewModel.breakdown.contains(where: { $0.isPartial || !$0.sizeKnown }) {
                 Text(loc.s("storage.partialScopes"))
                     .font(Typo.micro)
                     .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 18)
@@ -313,11 +336,11 @@ public struct StorageView: View {
                             ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
                                 categoryRow(item, info: info, spec: spec).staggeredAppear(index: index)
                             }
-                            if rows.isEmpty {
-                                StateView(.scanning(percent: 0,
-                                                    category: loc.s("storage.analyzing"),
-                                                    path: "", cancel: nil))
-                                    .frame(minHeight: 220)
+                            if rows.isEmpty && !viewModel.isLoading {
+                                Text(loc.s("storage.distributionEmpty"))
+                                    .font(Typo.secondary)
+                                    .foregroundStyle(Palette.textSecondary)
+                                    .frame(maxWidth: .infinity, minHeight: 140)
                             }
                         } header: {
                             TableHeader(spec)
@@ -380,10 +403,10 @@ public struct StorageView: View {
             // 18pt inset all round, 12pt between blocks — the panel is one
             // padded column, not a stack of edge-to-edge strips.
             VStack(alignment: .leading, spacing: 12) {
-                Text(item.isResidual ? loc.s("storage.unexplainedBalance") : loc.name(item.name))
+                Text(loc.name(item.name))
                     .font(Typo.cardTitle)
                     .foregroundStyle(Palette.textPrimary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(item.sizeKnown ? loc.f("storage.detail.shareFmt",
                            (item.isPartial && !item.isResidual ? "≥ " : "") + item.formattedSize,
                            Fmt.percent(share(item, of: info) * 100, decimals: 0)) : loc.s("storage.unmeasured"))
@@ -392,13 +415,11 @@ public struct StorageView: View {
 
                 Rectangle().fill(Palette.borderHairline).frame(height: 1)
 
-                if item.isResidual {
+                if let reason = item.remainderReason {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             Text(loc.f("storage.measuredScopesFmt", Fmt.bytes(viewModel.measuredCategoryBytes)))
-                            Text(loc.s("storage.balanceNotInventory"))
-                            Text(loc.s("storage.systemUnmeasured"))
-                            Text(loc.s("storage.residualExplanation"))
+                            Text(loc.s(reason == .protected ? "storage.remainderProtected" : "storage.remainderUnmeasured"))
                             ForEach(Array(item.accessIssues.prefix(8).enumerated()), id: \.offset) { _, issue in
                                 Text(loc.s(issue.reasonKey) + "\n" + issue.path).textSelection(.enabled)
                             }
@@ -411,16 +432,10 @@ public struct StorageView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxHeight: .infinity)
-                    Button(loc.s("detail.exploreUnassigned")) {
-                        presentBrowser { $0.openUnassignedFolders() }
+                    if reason == .protected {
+                        Button(loc.s("fda.openSettings")) { FullDiskAccess.openSettings() }
+                            .buttonStyle(.primaryAction)
                     }
-                    .buttonStyle(.primaryAction)
-                    Button(loc.s("detail.diskFolders")) {
-                        presentBrowser { $0.openDiskBrowser() }
-                    }
-                    .buttonStyle(.plain)
-                    .font(Typo.secondary)
-                    .foregroundStyle(Palette.accentText)
                 } else {
                     contentsList(item)
                     Button(loc.s("storage.open")) { presentBrowser { $0.loadDetail(for: item) } }
@@ -445,10 +460,12 @@ public struct StorageView: View {
     private func contentsList(_ category: StorageBreakdown) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
-                Text(category.path)
-                    .font(Typo.numeric(11, weight: .regular))
-                    .foregroundStyle(Palette.textSecondary)
-                    .textSelection(.enabled)
+                if !category.path.isEmpty {
+                    Text(category.path)
+                        .font(Typo.numeric(11, weight: .regular))
+                        .foregroundStyle(Palette.textSecondary)
+                        .textSelection(.enabled)
+                }
                 ForEach(Array(category.accessIssues.prefix(4).enumerated()), id: \.offset) { _, issue in
                     Text(loc.s(issue.reasonKey) + "\n" + issue.path)
                         .foregroundStyle(Palette.warningText)
@@ -471,7 +488,7 @@ public struct StorageView: View {
                 } else {
                     ForEach(viewModel.filteredDetailItems.prefix(60)) { entry in
                         HStack(spacing: 8) {
-                            Text(entry.name)
+                            Text(entry.storageName(loc))
                                 .font(Typo.secondary)
                                 .foregroundStyle(Palette.textPrimary)
                                 .lineLimit(1)
@@ -518,7 +535,7 @@ public struct StorageView: View {
     // MARK: Segments
 
     private func segments(_ info: StorageInfo) -> [StorageBarSegment] {
-        let reconciled = !rows.contains { !$0.reconciled }
+        let reconciled = !viewModel.isLoading && !rows.isEmpty && !rows.contains { !$0.reconciled }
         var segs = (reconciled ? rows : []).map { item in
             StorageBarSegment(
                 name: loc.name(item.name),

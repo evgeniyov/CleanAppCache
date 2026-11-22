@@ -263,12 +263,12 @@
 "bk.Documents" = "Documents";
 "bk.Downloads" = "Downloads";
 "bk.Desktop" = "Desktop";
-"bk.User Caches" = "User Caches";
-"bk.User Logs" = "User Logs";
+"bk.User Caches" = "Caches";
+"bk.User Logs" = "Logs";
 "bk.Movies" = "Movies";
 "bk.Music" = "Music";
 "bk.Pictures" = "Pictures";
-"bk.Other" = "Outside measured folders";
+"bk.Other" = "Other";
 
 /* Startup */
 "startup.runAtLoad" = "At login";
@@ -1194,3 +1194,29 @@
 "searchProfiles.saveAction" = "Save";
 "searchProfiles.name" = "Profile name";
 "searchProfiles.remove" = "Remove profile";
+
+"bk.Application Support" = "Application Support";
+"bk.Containers" = "Containers";
+"bk.Developer" = "Developer";
+"bk.Mail and Messages" = "Mail and Messages";
+"bk.iCloud Drive" = "iCloud Drive";
+"bk.Other Library" = "Other Library";
+"bk.Your folders" = "Your folders";
+"bk.Hidden folders" = "Hidden folders";
+"bk.System Data" = "System Data";
+"bk.macOS and Service Volumes" = "macOS and Service Volumes";
+"bk.Protected Space" = "Protected — needs Full Disk Access";
+"bk.Unmeasured Space" = "Snapshots, purgeable space and unreadable items";
+"storage.summaryLoading" = "Loading…";
+"storage.measuringDistribution" = "Measuring folders and volumes. This may take a few minutes.";
+"storage.distributionEmpty" = "Refresh to measure folders and volumes.";
+"storage.remainderProtected" = "Some folders refused access. Give CleanAppCache Full Disk Access, then measure again. Snapshots, purgeable space and filesystem metadata may also contribute to this balance.";
+"storage.remainderUnmeasured" = "APFS snapshots, purgeable space, metadata and items the scan could not read can contribute to this balance.";
+"storage.apfs.volumeFmt" = "%@ (%@)";
+"storage.apfs.role.System" = "System";
+"storage.apfs.role.Data" = "Data";
+"storage.apfs.role.Preboot" = "Preboot";
+"storage.apfs.role.Recovery" = "Recovery";
+"storage.apfs.role.VM" = "VM";
+"storage.apfs.role.Update" = "Update";
+"storage.apfs.summary" = "Volume overview";

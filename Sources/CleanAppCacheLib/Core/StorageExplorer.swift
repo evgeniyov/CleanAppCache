@@ -82,8 +82,8 @@ struct StorageExplorer: Sendable {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return StorageExplorer(home: home,
                                roots: ["/Users", "/Library", "/private", "/opt", "/usr/local"].map { URL(fileURLWithPath: $0) },
-                               excluded: StorageClassification.targets(home: home).map(\.url),
-                               volumes: [URL(fileURLWithPath: "/"), home])
+                               excluded: StorageClassification.fixedFolderPaths(home: home),
+                               volumes: [URL(fileURLWithPath: "/"), URL(fileURLWithPath: StorageStartupVolume.dataPath), home])
     }
 
     init(home: URL, roots: [URL], excluded: [URL], volumes: [URL],
@@ -118,7 +118,13 @@ struct StorageExplorer: Sendable {
     /// Credential stores and private conversation histories remain metadata-only.
     /// Hidden build/model caches can be explored without opening these stores.
     private func isPrivate(_ path: String) -> Bool {
-        let relative = path.hasPrefix(home.path + "/") ? String(path.dropFirst(home.path.count + 1)).lowercased() : ""
+        func logicalPath(_ path: String) -> String {
+            let dataPath = StorageStartupVolume.dataPath
+            return path.hasPrefix(dataPath + "/") ? String(path.dropFirst(dataPath.count)) : path
+        }
+        let logical = logicalPath(path)
+        let homePath = logicalPath(home.path)
+        let relative = logical.hasPrefix(homePath + "/") ? String(logical.dropFirst(homePath.count + 1)).lowercased() : ""
         return [".ssh", ".gnupg", ".aws", ".azure", ".kube", ".codex", ".config/gcloud",
                 "library/keychains", "library/mail", "library/messages"].contains {
             relative == $0 || relative.hasPrefix($0 + "/")

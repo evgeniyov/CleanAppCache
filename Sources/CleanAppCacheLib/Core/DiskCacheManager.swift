@@ -6,6 +6,7 @@ public actor DiskCacheManager {
     
     private let cacheURL: URL
     private var memoryCache: [String: CacheEntry] = [:]
+    private var storageOverview: StorageOverviewEntry?
     private var browserSnapshots: [String: StorageBrowserSnapshot] = [:]
     private let fileManager = FileManager.default
     /// A measurement may outlive a deletion or cache reset. Its generation
@@ -18,10 +19,21 @@ public actor DiskCacheManager {
         let isDirectory: Bool
     }
     
+    private struct StorageOverviewEntry: Codable, Sendable {
+        let device: String
+        let paths: [String]
+        let hasFullDiskAccess: Bool
+        let date: Date
+        let measurement: StorageClassification.Measurement
+
+        var isFresh: Bool { Date().timeIntervalSince(date) < 3600 }
+    }
+
     private struct CacheFile: Codable {
         var entries: [String: CacheEntry]
         var version: Int
         var browserSnapshots: [String: StorageBrowserSnapshot]?
+        var storageOverview: StorageOverviewEntry?
     }
     
     private init() {
@@ -43,6 +55,7 @@ public actor DiskCacheManager {
            let cacheFile = try? JSONDecoder().decode(CacheFile.self, from: data) {
             self.memoryCache = cacheFile.entries
             self.browserSnapshots = cacheFile.browserSnapshots ?? [:]
+            self.storageOverview = cacheFile.storageOverview
         }
     }
     
@@ -83,10 +96,27 @@ public actor DiskCacheManager {
         return true
     }
 
-    func clearBrowserSnapshots() {
+    func storageMeasurement(device: String, paths: [String], hasFullDiskAccess: Bool) -> StorageClassification.Measurement? {
+        guard let entry = storageOverview, entry.isFresh, entry.device == device,
+              entry.paths == paths, entry.hasFullDiskAccess == hasFullDiskAccess else { return nil }
+        return entry.measurement
+    }
+
+    func saveStorageMeasurement(_ measurement: StorageClassification.Measurement, device: String, paths: [String],
+                                hasFullDiskAccess: Bool, ifGeneration expected: UUID) {
+        guard generation == expected else { return }
+        // A batch has one hard-link attribution. Never combine its sizes with
+        // per-folder cache entries or entries from an earlier batch.
+        storageOverview = StorageOverviewEntry(device: device, paths: paths, hasFullDiskAccess: hasFullDiskAccess,
+                                               date: Date(), measurement: measurement)
+        persist()
+    }
+
+    func clearStorageSnapshots() {
         generation = UUID()
-        guard !browserSnapshots.isEmpty else { return }
+        guard !browserSnapshots.isEmpty || storageOverview != nil else { return }
         browserSnapshots.removeAll()
+        storageOverview = nil
         persist()
     }
 
@@ -96,6 +126,7 @@ public actor DiskCacheManager {
         generation = UUID()
         // Browser snapshots also include descendant sizes and can span several roots.
         browserSnapshots.removeAll()
+        storageOverview = nil
         for path in paths { memoryCache.removeValue(forKey: path) }
         let prefixes = roots.map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         memoryCache = memoryCache.filter { key, _ in
@@ -124,7 +155,9 @@ public actor DiskCacheManager {
             let maxAge: TimeInterval = entry.isDirectory ? 3600 : 86400
             return now.timeIntervalSince(entry.timestamp) < maxAge
         }
-        let cacheFile = CacheFile(entries: memoryCache, version: 1, browserSnapshots: browserSnapshots)
+        if storageOverview?.isFresh == false { storageOverview = nil }
+        let cacheFile = CacheFile(entries: memoryCache, version: 1, browserSnapshots: browserSnapshots,
+                                  storageOverview: storageOverview)
         do {
             let data = try JSONEncoder().encode(cacheFile)
             // Atomic write: a crash/interleave mid-write would otherwise leave a
@@ -142,6 +175,7 @@ public actor DiskCacheManager {
         generation = UUID()
         memoryCache.removeAll()
         browserSnapshots.removeAll()
+        storageOverview = nil
         do {
             try fileManager.removeItem(at: cacheURL)
             return true

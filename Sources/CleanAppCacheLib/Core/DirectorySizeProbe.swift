@@ -71,21 +71,24 @@ enum DirectorySizeProbe {
         let succeeded: Bool
         let diagnostics: Data
         let timedOut: Bool
+        let diagnosticsTruncated: Bool
     }
 
     /// A failed traversal can still return lower bounds for readable roots.
-    static func captureResponse(executable: URL, arguments: [String], timeout: TimeInterval) async -> Response? {
+    static func captureResponse(executable: URL, arguments: [String], timeout: TimeInterval,
+                                environment: [String: String]? = nil, diagnosticLimit: Int = 65_536) async -> Response? {
         let owner = ProcessOwner()
         return await withTaskCancellationHandler {
             await Task.detached(priority: .utility) {
                 let process = Process()
                 process.executableURL = executable
                 process.arguments = arguments
+                if let environment { process.environment = environment }
                 let pipe = Pipe()
                 process.standardOutput = pipe
                 let errorPipe = Pipe()
                 process.standardError = errorPipe
-                let diagnostics = DiagnosticCapture(handle: errorPipe.fileHandleForReading)
+                let diagnostics = DiagnosticCapture(handle: errorPipe.fileHandleForReading, limit: diagnosticLimit)
                 let drained = DispatchGroup()
                 do { guard try owner.start(process) else { return nil } }
                 catch { return nil }
@@ -106,7 +109,7 @@ enum DirectorySizeProbe {
                 owner.finish()
                 guard !owner.isCancelled || owner.timedOut else { return nil }
                 return Response(data: data, succeeded: !owner.timedOut && process.terminationStatus == 0,
-                                diagnostics: diagnostics.data, timedOut: owner.timedOut)
+                                diagnostics: diagnostics.data, timedOut: owner.timedOut, diagnosticsTruncated: diagnostics.truncated)
             }.value
         } onCancel: {
             owner.cancel()
@@ -117,11 +120,20 @@ enum DirectorySizeProbe {
     /// stdout. Keep diagnostics bounded without ever mixing them into sizes.
     private final class DiagnosticCapture: @unchecked Sendable {
         let handle: FileHandle
+        let limit: Int
         private(set) var data = Data()
-        init(handle: FileHandle) { self.handle = handle }
+        private(set) var truncated = false
+
+        init(handle: FileHandle, limit: Int) {
+            self.handle = handle
+            self.limit = max(0, limit)
+        }
+
         func drain() {
             while let chunk = try? handle.read(upToCount: 4096), !chunk.isEmpty {
-                if data.count < 65_536 { data.append(chunk.prefix(65_536 - data.count)) }
+                let remaining = limit - data.count
+                truncated = truncated || chunk.count > remaining
+                data.append(chunk.prefix(remaining))
             }
         }
     }

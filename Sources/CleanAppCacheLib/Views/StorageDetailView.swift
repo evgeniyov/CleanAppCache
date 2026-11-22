@@ -133,14 +133,18 @@ public struct StorageDetailView: View {
             }
             breadcrumbs
             SearchField(text: $viewModel.searchText, placeholder: loc.s("detail.search"), width: 140)
-            IconButton(viewModel.showOnlyFolders ? "folder.fill" : "folder",
-                       label: loc.s("detail.foldersOnly"),
-                       tone: viewModel.showOnlyFolders ? .info : nil) {
-                viewModel.showOnlyFolders.toggle()
+            if !viewModel.isVolumeList {
+                IconButton(viewModel.showOnlyFolders ? "folder.fill" : "folder",
+                           label: loc.s("detail.foldersOnly"),
+                           tone: viewModel.showOnlyFolders ? .info : nil) {
+                    viewModel.showOnlyFolders.toggle()
+                }
+                .accessibilityAddTraits(viewModel.showOnlyFolders ? .isSelected : [])
             }
-            .accessibilityAddTraits(viewModel.showOnlyFolders ? .isSelected : [])
-            RefreshButton(label: loc.s("common.rescan.tooltip")) {
-                viewModel.reloadCurrentDetail()
+            if !viewModel.isGroupRoot {
+                RefreshButton(label: loc.s("common.rescan.tooltip")) {
+                    viewModel.reloadCurrentDetail()
+                }
             }
         }
         .padding(.horizontal, Metric.inset)
@@ -185,7 +189,7 @@ public struct StorageDetailView: View {
     }
 
     private func pathLabel(_ path: String) -> String {
-        if path.isEmpty { return loc.s("detail.outsideCategories") }
+        if path.isEmpty { return title }
         if path == "/" { return StorageInfo.volumeName }
         if let volume = viewModel.externalVolume, volume.url.path == path { return volume.name }
         return URL(fileURLWithPath: path).lastPathComponent
