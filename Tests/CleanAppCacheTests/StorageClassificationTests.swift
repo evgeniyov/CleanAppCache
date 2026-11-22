@@ -193,14 +193,33 @@ final class StorageClassificationTests: XCTestCase {
         let original = StorageSnapshot(date: date, usedBytes: used, breakdown: beforeRows)
         let snapshot = StorageSnapshot(date: date.addingTimeInterval(86_400), usedBytes: used, breakdown: afterRows)
         let restored = try JSONDecoder().decode(StorageSnapshot.self, from: JSONEncoder().encode(snapshot))
-        let comparison = StorageSnapshotComparison(from: original, to: restored)
-        let cacheChange = try XCTUnwrap(comparison.changes.first { $0.category == StorageCategory.userCaches.rawValue })
-        XCTAssertTrue(cacheChange.uncertain)
-        XCTAssertTrue(cacheChange.currentPartial)
-        XCTAssertEqual(cacheChange.presence, .changed)
-        let containerChange = try XCTUnwrap(comparison.changes.first { $0.member?.id == containers.url.path })
-        XCTAssertTrue(containerChange.uncertain)
-        XCTAssertEqual(containerChange.presence, .changed)
+        // Losing and regaining access changes which rows exist, not what is on
+        // disk: neither direction may report an existing folder as removed.
+        for comparison in [StorageSnapshotComparison(from: original, to: restored),
+                           StorageSnapshotComparison(from: restored, to: original)] {
+            XCTAssertFalse(comparison.changes.contains { $0.presence == .removed })
+            XCTAssertFalse(comparison.changes.contains { $0.category == StorageCategory.userCaches.rawValue })
+        }
+        let homeDenied = StorageClassification.targets(volume: scratch, home: home) { url in
+            if url.path == home.path { throw CocoaError(.fileReadNoPermission) }
+            return try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+        }
+        let homeMeasured = await StorageClassification.measure(homeDenied, volume: scratch)
+        let homeRows = StorageClassification.breakdown(targets: homeDenied, measurement: homeMeasured, total: used, used: used)
+        let homeSnapshot = StorageSnapshot(date: date.addingTimeInterval(172_800), usedBytes: used, breakdown: homeRows)
+        let homeComparison = StorageSnapshotComparison(from: original, to: homeSnapshot)
+        XCTAssertFalse(homeComparison.changes.contains { $0.presence == .removed })
+
+        let gone = StorageSnapshot(date: date, usedBytes: used, categories: [
+            .init(key: StorageCategory.yourFolders.rawValue, bytes: 300_000_000, partial: false, members: [
+                .init(id: "/missing/project", name: "project", bytes: 300_000_000, partial: false,
+                      folderPath: "/missing/project")])])
+        let empty = StorageSnapshot(date: date.addingTimeInterval(60), usedBytes: used, categories: [
+            .init(key: StorageCategory.yourFolders.rawValue, bytes: 0, partial: false, members: [])])
+        let removal = StorageSnapshotComparison(from: gone, to: empty, pathExists: { _ in false })
+        XCTAssertEqual(removal.changes.first { $0.member != nil }?.presence, .removed)
+        let stillThere = StorageSnapshotComparison(from: gone, to: empty, pathExists: { _ in true })
+        XCTAssertNil(stillThere.changes.first { $0.member != nil })
 
         let libraryRow = try XCTUnwrap(afterRows.first { $0.name == StorageCategory.otherLibrary.rawValue })
         XCTAssertTrue(libraryRow.isPartial)

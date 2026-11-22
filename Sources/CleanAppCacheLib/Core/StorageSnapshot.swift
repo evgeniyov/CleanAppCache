@@ -160,7 +160,13 @@ struct StorageSnapshotComparison {
     let trashedBytes: UInt64
     let changes: [Change]
 
-    init(from: StorageSnapshot, to: StorageSnapshot, cleanups: [CleanupRecord] = []) {
+    /// Rows come from what could be enumerated at the time, so a row present on
+    /// one side only can mean that access changed rather than that data moved:
+    /// a denied folder collapses into one fallback row and splits again once it
+    /// is readable. Categories that appear or disappear are therefore never
+    /// reported, and a member counts as removed only when its folder is gone now.
+    init(from: StorageSnapshot, to: StorageSnapshot, cleanups: [CleanupRecord] = [],
+         pathExists: (String) -> Bool = { path in var info = stat(); return lstat(path, &info) == 0 }) {
         usedDelta = Self.difference(from.usedBytes, to.usedBytes)
         let events = cleanups.filter { $0.date > from.date && $0.date <= to.date }
         freedBytes = events.map(\.freedBytes).reduce(0, StorageSnapshot.addBytes)
@@ -174,7 +180,8 @@ struct StorageSnapshotComparison {
             let inLibrary = StorageClassification.libraryCategoryNames.contains(category)
             let oldPartial = old?.partial ?? (inLibrary && from.libraryEnumerationFailed == true)
             let newPartial = new?.partial ?? (inLibrary && to.libraryEnumerationFailed == true)
-            if let change = Self.change(category: category, member: nil, before: old?.bytes, after: new?.bytes,
+            if old != nil, new != nil,
+               let change = Self.change(category: category, member: nil, before: old?.bytes, after: new?.bytes,
                                         beforePartial: oldPartial, afterPartial: newPartial) {
                 rows.append(change)
             }
@@ -185,6 +192,14 @@ struct StorageSnapshotComparison {
             for id in Set(oldMembers.keys).union(newMembers.keys) {
                 let left = oldMembers[id]
                 let right = newMembers[id]
+                if right == nil {
+                    // Only a folder that no longer exists was removed; anything
+                    // else is a change in how the branch could be read.
+                    guard let path = left?.folderPath, !pathExists(path) else { continue }
+                } else if left == nil {
+                    // A member is new only against a side that listed its group completely.
+                    guard old != nil, !oldPartial, from.libraryEnumerationFailed != true else { continue }
+                }
                 if let change = Self.change(category: category, member: right ?? left,
                                             before: left?.bytes, after: right?.bytes,
                                             beforePartial: (left?.partial ?? oldPartial) || (isVolumeGroup && oldPartial),
