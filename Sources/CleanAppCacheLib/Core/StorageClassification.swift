@@ -6,6 +6,7 @@ enum StorageClassification {
         let icon: String
         let url: URL
         var grouped = false
+        var enumerationIssue: StorageAccessIssue? = nil
     }
 
     struct Measurement: Codable, Sendable {
@@ -38,6 +39,8 @@ enum StorageClassification {
         "Mail": ("Mail and Messages", "envelope.fill"),
         "Messages": ("Mail and Messages", "envelope.fill")
     ]
+
+    static let libraryCategoryNames = Set(libraryFolders.values.map { $0.0 } + [StorageCategory.otherLibrary.rawValue])
 
     static func fixedFolderPaths(home: URL) -> [URL] {
         [URL(fileURLWithPath: "/Applications")] +
@@ -80,14 +83,26 @@ enum StorageClassification {
                     displayURL = logical
                 }
             }
-            if isDirectory && (path == root || branchPaths.contains(where: { $0 == path || $0.hasPrefix(path + "/") })),
-               let children = try? readDirectory(displayURL) {
-                // Foundation can return a firmlink's logical child URL when
-                // enumerating its physical parent. Keep one namespace while
-                // finding the boundaries and use aliases only for measurement.
-                let prefix = path == "/" ? path : path + "/"
-                return children.map(\.lastPathComponent).sorted().flatMap {
-                    visit(URL(fileURLWithPath: prefix + $0))
+            var enumerationIssue: StorageAccessIssue?
+            if isDirectory && (path == root || branchPaths.contains(where: { $0 == path || $0.hasPrefix(path + "/") })) {
+                do {
+                    let children = try readDirectory(displayURL)
+                    // Foundation can return a firmlink's logical child URL when
+                    // enumerating its physical parent. Keep one namespace while
+                    // finding the boundaries and use aliases only for measurement.
+                    let prefix = path == "/" ? path : path + "/"
+                    return children.map(\.lastPathComponent).sorted().flatMap {
+                        visit(URL(fileURLWithPath: prefix + $0))
+                    }
+                } catch where path == library {
+                    let posixCode = (error as? POSIXError)?.code
+                    let denied = (error as? CocoaError)?.code == .fileReadNoPermission ||
+                        posixCode == .EACCES || posixCode == .EPERM
+                    enumerationIssue = StorageAccessIssue(path: displayURL.path,
+                                                          reasonKey: denied ? "detail.accessDenied" : "detail.unavailable",
+                                                          libraryEnumerationFailed: true)
+                } catch {
+                    // Keep the fallback target when the branch cannot be split.
                 }
             }
 
@@ -109,7 +124,8 @@ enum StorageClassification {
                 category = ("System Data", "internaldrive.fill")
                 grouped = true
             }
-            return [Target(name: category.0, icon: category.1, url: displayURL, grouped: grouped)]
+            return [Target(name: category.0, icon: category.1, url: displayURL, grouped: grouped,
+                           enumerationIssue: enumerationIssue)]
         }
         return disjoint(visit(volume))
     }
@@ -236,7 +252,9 @@ enum StorageClassification {
             let members = targets.map { target in
                 let path = target.url.path
                 let size = measurement.bytes[path]
-                let issues = measurement.issues.filter { contains(path, path: $0.path) }
+                var issues = measurement.issues.filter { contains(path, path: $0.path) }
+                // A successful or cached size probe does not establish which categories are present.
+                if let issue = target.enumerationIssue { issues.insert(issue, at: 0) }
                 var metadata = stat()
                 let isDirectory = lstat(path, &metadata) == 0 && metadata.st_mode & S_IFMT == S_IFDIR
                 return StorageItemDetail(url: target.url, size: size ?? 0, isDirectory: isDirectory,

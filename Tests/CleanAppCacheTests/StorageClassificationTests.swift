@@ -165,6 +165,51 @@ final class StorageClassificationTests: XCTestCase {
         XCTAssertEqual(granted.first { $0.remainderReason == .unmeasured }?.bytes, 300)
     }
 
+    func testUnreadableLibraryDoesNotLookLikeRemovedCategories() async throws {
+        let home = scratch.appendingPathComponent("Users/me")
+        let library = home.appendingPathComponent("Library")
+        let caches = try target("Users/me/Library/Caches")
+        let containers = try target("Users/me/Library/Containers")
+        let documents = try target("Users/me/Documents")
+        for directory in [caches, containers, documents] {
+            try Data(repeating: 1, count: 65_536).write(to: directory.url.appendingPathComponent("fixture"))
+        }
+
+        let complete = StorageClassification.targets(volume: scratch, home: home)
+        let incomplete = StorageClassification.targets(volume: scratch, home: home) { url in
+            if url.path == library.path { throw CocoaError(.fileReadNoPermission) }
+            return try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+        }
+        let before = await StorageClassification.measure(complete, volume: scratch)
+        let after = await StorageClassification.measure(incomplete, volume: scratch)
+        XCTAssertEqual(after.probeFailed, false)
+        XCTAssertGreaterThan(try XCTUnwrap(after.bytes[library.path]), 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: caches.url.path))
+
+        let used: UInt64 = 1_000_000_000
+        let beforeRows = StorageClassification.breakdown(targets: complete, measurement: before, total: used, used: used)
+        let afterRows = StorageClassification.breakdown(targets: incomplete, measurement: after, total: used, used: used)
+        let date = Date()
+        let original = StorageSnapshot(date: date, usedBytes: used, breakdown: beforeRows)
+        let snapshot = StorageSnapshot(date: date.addingTimeInterval(86_400), usedBytes: used, breakdown: afterRows)
+        let restored = try JSONDecoder().decode(StorageSnapshot.self, from: JSONEncoder().encode(snapshot))
+        let comparison = StorageSnapshotComparison(from: original, to: restored)
+        let cacheChange = try XCTUnwrap(comparison.changes.first { $0.category == StorageCategory.userCaches.rawValue })
+        XCTAssertTrue(cacheChange.uncertain)
+        XCTAssertTrue(cacheChange.currentPartial)
+        XCTAssertEqual(cacheChange.presence, .changed)
+        let containerChange = try XCTUnwrap(comparison.changes.first { $0.member?.id == containers.url.path })
+        XCTAssertTrue(containerChange.uncertain)
+        XCTAssertEqual(containerChange.presence, .changed)
+
+        let libraryRow = try XCTUnwrap(afterRows.first { $0.name == StorageCategory.otherLibrary.rawValue })
+        XCTAssertTrue(libraryRow.isPartial)
+        XCTAssertEqual(libraryRow.accessIssues.first?.path, library.path)
+        XCTAssertEqual(libraryRow.accessIssues.first?.reasonKey, "detail.accessDenied")
+        XCTAssertEqual(afterRows.first { $0.name == StorageCategory.documents.rawValue }?.isPartial, false)
+        XCTAssertEqual(restored.categories.first { $0.key == libraryRow.name }?.partial, true)
+    }
+
     func testAPFSPlistKeepsOnlyOtherVolumesOfStartupContainer() throws {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>

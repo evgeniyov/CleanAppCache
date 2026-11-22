@@ -169,6 +169,7 @@ public struct StorageBreakdown: Identifiable, Sendable {
 public struct StorageAccessIssue: Codable, Sendable {
     public let path: String
     public let reasonKey: String
+    var libraryEnumerationFailed: Bool? = nil
 }
 
 public struct StorageItemDetail: Codable, Identifiable, Sendable {

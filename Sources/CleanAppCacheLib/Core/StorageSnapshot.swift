@@ -19,15 +19,20 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
     let date: Date
     let usedBytes: UInt64
     let categories: [Category]
+    let libraryEnumerationFailed: Bool?
 
-    init(date: Date, usedBytes: UInt64, categories: [Category]) {
+    init(date: Date, usedBytes: UInt64, categories: [Category], libraryEnumerationFailed: Bool? = nil) {
         self.date = date
         self.usedBytes = usedBytes
         self.categories = categories
+        self.libraryEnumerationFailed = libraryEnumerationFailed
     }
 
     init(date: Date, usedBytes: UInt64, breakdown: [StorageBreakdown]) {
-        self.init(date: date, usedBytes: usedBytes, categories: breakdown.map { row in
+        let libraryEnumerationFailed = breakdown.contains { row in
+            row.accessIssues.contains { $0.libraryEnumerationFailed == true }
+        }
+        let categories = breakdown.map { row in
             let members: [Member]
             switch row.contents {
             case let .group(items):
@@ -45,14 +50,16 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
                     let bytes = group.compactMap(\.bytes).reduce(0, Self.addBytes)
                     let name = group.count == 1 && !first.name.isEmpty ? first.name : key
                     return Member(id: key, name: name, bytes: bytes,
-                                  partial: group.contains { $0.bytes == nil })
+                                  partial: row.isPartial || group.contains { $0.bytes == nil })
                 }
             case .folder, .remainder:
                 members = []
             }
             return Category(key: StorageCategory.from(rawName: row.name).rawValue, bytes: row.bytes,
                             partial: row.isResidual || row.isPartial || !row.sizeKnown, members: members)
-        })
+        }
+        self.init(date: date, usedBytes: usedBytes, categories: categories,
+                  libraryEnumerationFailed: libraryEnumerationFailed ? true : nil)
     }
 
     static func addBytes(_ lhs: UInt64, _ rhs: UInt64) -> UInt64 {
@@ -164,10 +171,15 @@ struct StorageSnapshotComparison {
         for category in Set(before.keys).union(after.keys) {
             let old = before[category]
             let new = after[category]
+            let inLibrary = StorageClassification.libraryCategoryNames.contains(category)
+            let oldPartial = old?.partial ?? (inLibrary && from.libraryEnumerationFailed == true)
+            let newPartial = new?.partial ?? (inLibrary && to.libraryEnumerationFailed == true)
             if let change = Self.change(category: category, member: nil, before: old?.bytes, after: new?.bytes,
-                                        beforePartial: old?.partial == true, afterPartial: new?.partial == true) {
+                                        beforePartial: oldPartial, afterPartial: newPartial) {
                 rows.append(change)
             }
+            // A role in a saved partial group can have its own allocation and still be incomplete.
+            let isVolumeGroup = category == StorageCategory.serviceVolumes.rawValue
             let oldMembers = Dictionary((old?.members ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             let newMembers = Dictionary((new?.members ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             for id in Set(oldMembers.keys).union(newMembers.keys) {
@@ -175,8 +187,8 @@ struct StorageSnapshotComparison {
                 let right = newMembers[id]
                 if let change = Self.change(category: category, member: right ?? left,
                                             before: left?.bytes, after: right?.bytes,
-                                            beforePartial: left?.partial ?? (old?.partial == true),
-                                            afterPartial: right?.partial ?? (new?.partial == true)) {
+                                            beforePartial: (left?.partial ?? oldPartial) || (isVolumeGroup && oldPartial),
+                                            afterPartial: (right?.partial ?? newPartial) || (isVolumeGroup && newPartial)) {
                     rows.append(change)
                 }
             }
@@ -193,7 +205,14 @@ struct StorageSnapshotComparison {
     private static func change(category: String, member: StorageSnapshot.Member?,
                                before: UInt64?, after: UInt64?, beforePartial: Bool, afterPartial: Bool) -> Change? {
         let delta = difference(before ?? 0, after ?? 0)
-        let presence: Change.Presence = before == nil ? .added : (after == nil ? .removed : .changed)
+        let presence: Change.Presence
+        if before == nil && !beforePartial {
+            presence = .added
+        } else if after == nil && !afterPartial {
+            presence = .removed
+        } else {
+            presence = .changed
+        }
         let uncertain = beforePartial || afterPartial
         let threshold = max(100_000_000, (before ?? 0) / 100)
         guard uncertain || presence != .changed || delta.magnitude >= threshold else { return nil }

@@ -129,6 +129,36 @@ final class StorageSnapshotTests: XCTestCase {
         XCTAssertEqual(month?.shortHistory, true)
     }
 
+    func testPartialAPFSGroupDoesNotRankMeasuredPrebootAsExact() throws {
+        let category = StorageCategory.serviceVolumes.rawValue
+        func snapshot(date: Date, prebootBytes: UInt64, isPartial: Bool) -> StorageSnapshot {
+            let volumes = StorageAPFSVolumes(members: [
+                .init(device: "disk3s3", name: "Preboot", roles: ["Preboot"], bytes: prebootBytes)
+            ], isPartial: isPartial)
+            let used: UInt64 = 20_000_000_000
+            let rows = StorageClassification.breakdown(targets: [], measurement: .init(), volumes: volumes,
+                                                       total: used, used: used)
+            return StorageSnapshot(date: date, usedBytes: used, breakdown: rows)
+        }
+
+        let from = snapshot(date: daysAgo(1), prebootBytes: 10_000_000_000, isPartial: false)
+        let to = snapshot(date: today, prebootBytes: 2_000_000_000, isPartial: true)
+        let preboot = try XCTUnwrap(to.categories.first { $0.key == category }?.members.first)
+        XCTAssertTrue(preboot.partial)
+        let comparison = StorageSnapshotComparison(from: from, to: to)
+        let change = try XCTUnwrap(comparison.changes.first { $0.member?.id == "Preboot" })
+        XCTAssertTrue(change.uncertain)
+        XCTAssertTrue(change.currentPartial)
+
+        let saved = StorageSnapshot(date: today, usedBytes: to.usedBytes, categories: [
+            .init(key: category, bytes: preboot.bytes, partial: true, members: [
+                .init(id: preboot.id, name: preboot.name, bytes: preboot.bytes, partial: false)
+            ])
+        ])
+        let savedComparison = StorageSnapshotComparison(from: from, to: saved)
+        XCTAssertTrue(try XCTUnwrap(savedComparison.changes.first { $0.member?.id == "Preboot" }).uncertain)
+    }
+
     func testBackgroundDecisionRespectsAgePowerToggleAndDailyAttempt() {
         func shouldMeasure(latest: Date? = nil, lastAttempt: Date? = nil, enabled: Bool = true,
                            running: Bool = false, lowPower: Bool = false) -> Bool {
