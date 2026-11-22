@@ -4,12 +4,12 @@
 
 ## Testing
 
-<!-- How you checked it: macOS version, Mac model, screens you exercised. -->
+<!-- How did you check it? Include your macOS version, Mac model and the screens you tested. -->
 
 ## Checklist
 
 - [ ] `Scripts/verify.sh` passes locally
-- [ ] New or changed user-facing strings are added to both `en.lproj` and `ru.lproj`
-- [ ] Any file deletion goes through `DeletionService` / `TrashService` (never a direct `FileManager` call), so `PathGuard` is checked
-- [ ] Tests are added or updated for changed behaviour
-- [ ] Screenshots are attached for UI changes (light and dark if the change affects colours)
+- [ ] Both `en.lproj` and `ru.lproj` include new or changed user-facing strings
+- [ ] All file deletions use `DeletionService` or `TrashService` to check `PathGuard`. No direct `FileManager` calls delete files
+- [ ] New or updated tests cover changes in behaviour
+- [ ] The pull request includes screenshots for UI changes, in both themes if the change affects colours

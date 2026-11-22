@@ -91,8 +91,8 @@ def make_info_plist(version: str, build: str) -> None:
         "NSHumanReadableCopyright": APP_NAME,
         "NSAppleEventsUsageDescription":
             "CleanAppCache uses System Events to list the apps that open at "
-            "login, and Finder to move files your account cannot change to the "
-            "Trash — Finder asks for your password first.",
+            "login. It asks Finder to move files your account cannot change to "
+            "the Trash. Finder asks for your password first.",
         # TCC prompts the user the first time the app reaches into these
         # folders. Without a usage description the prompt has no explanation,
         # and on some configurations the access is refused outright and scans
@@ -100,17 +100,17 @@ def make_info_plist(version: str, build: str) -> None:
         # Documents/Desktop/Downloads, Large Files scans the whole volume.
         "NSDesktopFolderUsageDescription":
             "CleanAppCache scans your Desktop to find duplicate and unusually "
-            "large files. Nothing is deleted without your confirmation.",
+            "large files. It asks you to confirm before deleting.",
         "NSDocumentsFolderUsageDescription":
             "CleanAppCache scans your Documents to find duplicate and "
-            "unusually large files. Nothing is deleted without your "
-            "confirmation.",
+            "unusually large files. It asks you to confirm before "
+            "deleting.",
         "NSDownloadsFolderUsageDescription":
             "CleanAppCache scans your Downloads to find old installers, "
-            "duplicates and large files. Nothing is deleted without your "
-            "confirmation.",
+            "duplicates and large files. It asks you to confirm before "
+            "deleting.",
         "NSRemovableVolumesUsageDescription":
-            "CleanAppCache reports how much space is used on connected "
+            "CleanAppCache shows how much disk space is in use on connected "
             "volumes.",
     }
     if (ROOT / "Resources/AppIcon.icns").exists():

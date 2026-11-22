@@ -1,12 +1,10 @@
 # Contributing to CleanAppCache
 
-CleanAppCache deletes files on other people's Macs. Most of the rules below
-exist so that a change cannot delete something it should not, or hide from
-the user what it is about to do. Please read them before you open a pull
-request.
+CleanAppCache deletes files on other people's Macs. These rules prevent
+unintended deletions and require the app to tell users what it will do. Read
+them before you open a pull request.
 
-Security problems and unexpected deletions are not public issues: report them
-privately as described in [SECURITY.md](SECURITY.md).
+Report security problems and unexpected deletions privately as described in [SECURITY.md](SECURITY.md).
 
 ## Building and running
 
@@ -25,12 +23,12 @@ experimental feature enabled. The app targets macOS 13 and later.
 | `Scripts/verify.sh` | Everything CI runs, in the same order. |
 
 `build.py` signs with a local "CleanAppCache Local" identity if
-`Scripts/make_signing_identity.sh` has created one, and ad-hoc otherwise. A
+`Scripts/make_signing_identity.sh` has created one. Otherwise it signs ad hoc. A
 stable local identity keeps macOS privacy grants (Full Disk Access, Apple
-Events) attached to the app across rebuilds; an ad-hoc signature changes on
-every build. `DEVELOPER_ID` and `NOTARY_PROFILE` (or `--developer-id` and
+Events) attached to the app across rebuilds. An ad hoc signature changes on every
+build. `DEVELOPER_ID` and `NOTARY_PROFILE` (or `--developer-id` and
 `--notary-profile`) produce a Developer ID signed, notarized and stapled
-build; contributors do not need them.
+build. Contributors do not need them.
 
 ### Before you open a pull request
 
@@ -46,23 +44,22 @@ runs, in order:
 
 CI (`.github/workflows/ci.yml`) runs the invariants on Linux and the rest on a
 macOS 15 runner. The runner is a virtual machine with no SMC, IOReport or
-battery, so the hardware assertions in `SensorsTests` are skipped there. They
-use `TestHost.isVirtualMachine` (`kern.hv_vmm_present`); set `CAC_ASSUME_VM=1`
-to exercise the virtual-machine path on a real Mac.
+battery. `SensorsTests` uses `TestHost.isVirtualMachine` (`kern.hv_vmm_present`)
+to skip hardware assertions there. Set `CAC_ASSUME_VM=1` to exercise the
+virtual-machine path on a real Mac.
 
-## Rules that are not negotiable
+## Required checks and practices
 
-### Every delete of user data goes through PathGuard
+### Every deletion of user data goes through PathGuard
 
-`Core/PathGuard.swift` is a deny-list checked before every deletion. It
+`Core/PathGuard.swift` is the deny-list the app checks before every deletion. It
 refuses the filesystem root and top-level directories, system and
 SIP-protected paths, package-manager trees, the home folder and its standard
 folders, other users' homes, credentials and other sensitive user data, cloud
 storage, backups, media libraries, virtual machine bundles and anything inside
-a `.git` directory. It resolves symlinks and `..` before it compares.
+a `.git` directory. It resolves symlinks and `..` before it compares paths.
 
-The guard only helps if nothing goes around it. All user-data deletions must
-call one of two services:
+Use one of these services for every deletion of user data:
 
 - `TrashService.trash` moves items to the Trash and can restore them. This is
   the default.
@@ -87,20 +84,20 @@ for that family:
 
 | File | Allowed | Why |
 | --- | --- | --- |
-| `DeletionService.swift` | FileManager remove | The permanent-delete routing point. |
-| `TrashService.swift` | FileManager trash | The move-to-Trash routing point. |
-| `AppManager.swift` | FileManager remove, shell | Removes an `.app` bundle after `PathGuard.reject`; the administrator force-delete runs `rm` through AppleScript after the same validation. |
+| `DeletionService.swift` | FileManager remove, shell | Deletes files permanently, including the administrator `rm` it builds after `administratorTarget(for:)`. |
+| `TrashService.swift` | FileManager trash, Finder | Moves files to the Trash and hands protected items to Finder after PathGuard. |
+| `UvCacheCleaner.swift` | uv cache clean | Runs `uv cache clean` under uv's own cache lock, after PathGuard and scan-identity checks. |
+| `AppleScriptRunner.swift` | shell | Runs the administrator commands that `DeletionService` builds. |
 | `DiskCacheManager.swift` | FileManager remove | The app's own size cache. |
 | `Log.swift` | FileManager remove | The app's own log files. |
 | `DashboardViewModel.swift` | FileManager remove | The app's own scan cache. |
 | `CleanupHistory.swift` | FileManager remove | A stale, corrupt copy of the app's own history file. |
 
-Apart from the two services, the exemptions cover the uninstaller's bundle
-removal and the app deleting its own housekeeping files. A new exemption needs
-a strong reason in the pull request and a comment in the table. The scan finds
-only these spellings; a delete hidden behind a wrapper or a command built from
-pieces will not be caught, and review has to find it instead. Do not write
-code that relies on that gap.
+The uninstaller removes bundles through `DeletionService`, and the remaining
+exemptions cover the app's own files. Explain why a new exemption is necessary in the pull
+request and add a comment in the table. The scan checks only the spellings
+listed above. Reviewers must catch deletions made through a wrapper or a
+command built from pieces. Do not write code that relies on this gap.
 
 `PathGuardTests` covers the deny-list. If you change `PathGuard`, add a test
 for each path you allow or refuse.
@@ -108,17 +105,16 @@ for each path you allow or refuse.
 ### Prefer the Trash, and say so when you cannot
 
 Use `TrashService` and the Undo toast unless there is a concrete reason
-something cannot be recovered. Current permanent deletions are: emptying the
+an item cannot be recovered. The app permanently deletes the following: emptying the
 Trash, the uninstaller, Developer caches and build artifacts, Privacy browser
 data (restoring cookies would hand back live session tokens), Time Machine
-local snapshots and the administrator force-delete. Each of them sits behind a
-confirmation.
+local snapshots and the administrator force-delete. The app asks for confirmation for each.
 
 If your change deletes permanently, the confirmation text must say plainly
 that the items cannot be restored. Never escalate to administrator rights
 without an explicit prompt.
 
-### Localization: English and Russian together
+### English and Russian localization
 
 Every user-visible string goes through `loc.s`, `loc.f` or `loc.opt`
 (`Design/Localizer.swift`). A new key goes into **both**
@@ -126,8 +122,8 @@ Every user-visible string goes through `loc.s`, `loc.f` or `loc.opt`
 `ru.lproj/Localizable.strings`, with the same `%` format specifiers in the same
 order. Plurals go in `Localizable.stringsdict`, again in both languages.
 
-A missing key is not an error at runtime: the interface shows the raw key
-name. `Scripts/check_invariants.sh` therefore fails when:
+The interface displays the raw key name if a translation is missing.
+`Scripts/check_invariants.sh` fails when:
 
 - the English and Russian key sets differ or a key is duplicated;
 - a literal key used in code is missing from the strings file;
@@ -135,7 +131,7 @@ name. `Scripts/check_invariants.sh` therefore fails when:
 - the `.stringsdict` plural keys differ.
 
 If you do not write Russian, add your best attempt and say so in the pull
-request; do not leave the key out.
+request. Include the key in both languages.
 
 ### Colours come from the palette
 
@@ -146,21 +142,21 @@ needs a token with a value for both the light and the dark theme.
 
 ### Sizes go through Fmt
 
-Byte counts and transfer speeds are formatted only by `Fmt`
-(`Design/Format.swift`). Do not use `ByteCountFormatter`: it follows the system
-locale instead of the in-app language setting. Both checks above enforce this.
+Use only `Fmt` (`Design/Format.swift`) to format byte counts and transfer
+speeds. Do not use `ByteCountFormatter`. It uses the system locale instead of
+the in-app language setting. Both checks above enforce this.
 
 ### Zero warnings
 
 CI builds with `-warnings-as-errors`. Fix warnings rather than silencing them.
-Heavy work belongs off the main thread; view models are `@MainActor`, and
-shared managers that touch the filesystem broadly are actors.
+Run heavy work off the main thread. Mark view models `@MainActor` and use
+actors for shared managers that access many filesystem locations.
 
 ## Tests
 
 - Tests that touch the filesystem create a uniquely named scratch directory
   (or file) under `FileManager.default.temporaryDirectory` (for example
-  `"dup_\(UUID().uuidString)"`) and remove it when the test ends; prefer
+  `"dup_\(UUID().uuidString)"`) and remove it when the test ends. Prefer
   `defer`, `tearDown` or `addTeardownBlock`, which also run when an assertion
   throws. They never create, change or delete anything in the real
   home folder. Reading home paths to check that `PathGuard` refuses them, as
@@ -168,75 +164,71 @@ shared managers that touch the filesystem broadly are actors.
 - Code that stores state takes its location as a parameter so tests can point
   it at a scratch directory, as `CleanupHistory(directory:)` does.
 - Tests never reach the user's Trash or app state. TrashService accepts a
-  scratch mover for round-trip tests; the system mover and AppleScript refuse
+  scratch mover for round-trip tests. The system mover and AppleScript refuse
   to run inside XCTest. App state singletons use a unique temporary root, and
   cache/layout tests inject their own directory or disable persistence and sampling.
 - Tests of permanent deletion (`ScannerTests`, `AppManagerTests`) delete only
   inside their scratch directories.
 - Sensor tests that assert hardware facts call `skipUnlessRealHardware` (or
-  check `TestHost.isVirtualMachine`) so they skip on virtual machines instead
-  of failing.
+  check `TestHost.isVirtualMachine`) to skip tests on virtual machines.
 - Add or update tests for any change in behaviour, and above all for anything
   that selects or deletes files.
 
 ## Code comments
 
-Comments explain constraints the code cannot show on its own: why an order of
-operations matters, what a platform API really returns, what would break if a
-line were removed. Write them in English, in the present tense, about the code
+Use comments to explain constraints the code cannot show. Explain why
+operations run in a particular order, what a platform API returns or what
+would break if someone removed a line. Write them in English, in the present tense, about the code
 as it is. Do not narrate history ("previously", "we changed this because"),
 and do not refer to tickets, chats or documents a reader cannot see.
 Change history belongs in commit messages.
 
 ## Commits and pull requests
 
-- A commit message describes the change itself: a short summary line in the
-  imperative mood ("Skip a duplicate group whose kept copy changed"), then,
-  if needed, a body explaining why. Keep unrelated changes in separate commits.
-- Fill in the pull request template: what the change does, how you tested it
-  (macOS version, Mac model, the screens you exercised), and the checklist.
+- Start the commit message with a short summary in the imperative mood, such
+  as "Skip a duplicate group whose kept copy changed". Add a body if you need
+  to explain why. Keep unrelated changes in separate commits.
+- Fill in the pull request template. Describe what changed and how you tested
+  it, including macOS version, Mac model and the screens you tested. Complete
+  the checklist.
 - A change to the interface includes screenshots, in both the light and dark
   themes when it affects colours, and in both languages when it changes text
   whose length differs noticeably.
-- Keep pull requests focused. Large or behaviour-changing work is easier to
-  land after a short discussion in an issue.
+- Keep pull requests focused. Discuss large changes and changes to behaviour briefly in an issue to make
+  them easier to merge.
 
 ## Reporting sensor results
 
-Temperatures, CPU frequencies and GPU load are read through private or
+Monitor reads temperatures, CPU frequencies and GPU load through private or
 undocumented interfaces (SMC, IOHID, IOReport) whose keys and layouts vary by
-chip and macOS version. The app is developed on an Apple M4 Mac; other chips,
-Intel Macs and macOS 13 and 14 are untested. Values the app cannot read show
-"—", which is expected behaviour rather than a bug.
+chip and macOS version. Development takes place on an Apple M4 Mac. Other chips, Intel Macs and
+macOS 13 and 14 are untested. The app shows "—" when it cannot read a value.
 
-Reports from other hardware are useful. Please include:
+When reporting readings from other hardware, include:
 
 - the Mac model identifier (`sysctl hw.model`) and the chip;
 - the macOS version and build (`sw_vers`);
 - whether the app was built from source or downloaded, and whether it runs in
   a virtual machine;
-- what the app shows (the Monitor screen or the menu-bar widget; a screenshot
-  helps) and which values show "—";
+- what the app shows (a screenshot of the Monitor screen or menu bar widget helps) and which values show "—";
 - the same readings from a reference tool, such as `sudo powermetrics` or
   `macmon`, taken at the same moment under the same load, with the tool's name
   and version.
 
-Readings change from second to second, so compare samples taken together
-rather than at different times. Different sensors can legitimately disagree by
-a few degrees; for example, a die sensor read through IOHID can sit below the
-SMC junction temperature another tool reports. Say which sensor the reference
+Readings change from second to second. Compare samples taken at the same
+time. Different sensors can differ by a few degrees. For example, an IOHID
+die sensor can report a lower value than another tool's SMC junction
+temperature. Say which sensor the reference
 tool uses if you know.
 
 ## Code of conduct
 
-Be respectful and assume good faith. Criticise code and decisions, not the
-people who wrote them. Keep discussion on topic, and remember that
-contributors and users may be writing in a second language. Harassment,
-insults and personal attacks are not welcome in any project space. The
+Be respectful and assume good faith. Keep criticism focused on code and decisions. Stay on topic and remember that
+contributors and users may be writing in a second language. Do not harass, insult or attack people anywhere in the project. The
 maintainer may edit, hide or remove comments, close discussions, and block
-participants who do not follow these expectations.
+participants who break these rules.
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the MIT
-License that covers the project (see [LICENSE](LICENSE)).
+By contributing, you agree to license your contributions under the
+project's MIT License. See [LICENSE](LICENSE).

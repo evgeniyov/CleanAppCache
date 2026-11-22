@@ -1,8 +1,8 @@
 # Changelog
 
-Version headings use the form `## <version> — <YYYY-MM-DD>`. When a `v*` tag is
-pushed, `.github/workflows/release.yml` copies the matching section into the
-GitHub Release description (`v1.0.0` and `v1.0` both match `## 1.0`).
+Version headings use the form `## <version> — <YYYY-MM-DD>`. When you push a `v*` tag, `.github/workflows/release.yml` copies the matching
+section into the GitHub release description. Both `v1.0.0` and `v1.0` match
+`## 1.0`.
 
 ## Unreleased
 
@@ -10,137 +10,138 @@ GitHub Release description (`v1.0.0` and `v1.0` both match `## 1.0`).
 
 ### Added
 
-- Storage: "What changed" shows what grew or shrank since the previous
-  measurement, over 7 or over 30 days: the change in used space, what cleanups
-  freed or moved to the Trash in that period, and the folders and categories
-  that changed most. Items that could only be partly measured are marked as
-  uncertain instead of showing an exact figure.
-- The app measures the disk once a day in the background at low priority, so
-  the history fills without opening Storage. It skips Low Power Mode and a low
-  battery, and can be turned off in Settings.
+- In Storage, "What changed" compares used space with the previous measurement
+  and over 7 or 30 days. It lists what cleanups freed or moved to the Trash in
+  that period and which folders and categories changed most. It marks changes
+  as uncertain when it could only measure part of an item.
+- The app measures the disk once a day in the background at low priority. It
+  records the results even if you never open Storage. It skips measurements in
+  Low Power Mode or when the battery is low. You can turn off daily
+  measurements in Settings.
 
 ## 0.9.3 — 2026-11-22
 
 ### Improved
 
-- Storage: the distribution now covers the whole disk instead of leaving most
-  of it as "outside measured folders". New rows show the macOS and service
+- Storage accounts for the whole disk. Earlier versions grouped most of the
+  disk under "outside measured folders". New rows list macOS and service
   volumes (System, Preboot, VM, Recovery), system data (`/Library`,
   `/private/var`, Homebrew), `~/Library` by section (app data, containers,
   developer files, mail and messages, iCloud Drive), your own folders in the
-  home folder and hidden folders such as `.cache` or `.npm`, each with a list
-  of what is inside. Whatever cannot be measured is labelled with the reason,
-  for example folders that need Full Disk Access.
-- Storage: the "Can be cleaned" and "Snapshots" tiles measure on their own and
-  show a value, including zero, instead of a dash.
+  home folder and hidden folders such as `.cache` or `.npm`. Each row lists its
+  contents. Storage gives a reason for anything it cannot measure, such as a
+  folder that requires Full Disk Access.
+- In Storage, the "Can be cleaned" and "Snapshots" tiles each run their own
+  measurement. They show the measured value, including zero.
 
 ## 0.9.2 — 2026-11-20
 
 ### Fixed
 
-- Uninstaller: an app started while an uninstall is under way, or while the
-  password dialog is open, is kept together with its data. A folder that
-  merely ends in `.app` is no longer offered as an app, and data matched by
-  name stays when another installed app uses that name.
-- Uninstaller: when one item of a password-protected batch fails, the items
-  removed before it are no longer reported as still installed or left out of
-  History.
-- Orphans: a privileged helper that a launchd job still uses is no longer
-  offered for removal.
-- Startup: removing a login item removes only that item, not every item with
-  the same name. A second "turn off" can no longer start while one is running.
-- Undo: undoing part of a cleanup no longer erases its History record while
-  some of its items are still in the Trash.
-- Privacy: clearing several browsers at once now clears all of them; before,
-  every browser after the first was silently skipped. A browser opened while
-  the confirmation is up is no longer quit without asking. The confirmation
-  names the data that is actually cleared, and an already empty Firefox
-  history is no longer offered.
-- Duplicates: a copy restored with Undo can be removed again, and sparse files
-  no longer overstate the space a cleanup frees.
-- Storage: the overview refreshes after a cleanup on another screen instead of
-  showing the old numbers until a manual rescan.
-- System Data: a snapshot deleted during a rescan no longer comes back in the
-  list, and a size that could only be partly measured is shown as "at least".
-- System Junk: a file hard-linked into two folders is counted once.
-- Large Files: an empty result after a timeout or an access error keeps its
-  warning instead of showing a clean disk.
-- Monitor: quitting a process can no longer hit a different process that
-  reused its PID. Sorting by memory shows the largest memory users even when
-  they use no CPU. Network speed no longer loses traffic on fast links. A
-  charged battery on mains is shown as mains power.
-- Alerts: one hot reading can no longer trigger the sustained-temperature
-  alert, and an alert macOS failed to deliver is no longer muted for its
+- The Uninstaller keeps an app and its data if the app starts during uninstall,
+  including while the password dialog is open. It excludes folders that end in
+  `.app` but are not apps. It keeps data matched by name if another installed
+  app uses that name.
+- If an item in a password-protected batch fails, the Uninstaller still reports
+  earlier removals and records them in History.
+- Orphans leaves out privileged helpers that a launchd job still uses.
+- Startup removes only the selected login item, even when other items share its
+  name. It blocks a second "turn off" while the first is running.
+- After a partial Undo, History keeps the cleanup record while any of its items
+  remain in the Trash.
+- Privacy clears every selected browser. Previously, it skipped every browser
+  after the first without reporting it. It asks before quitting a browser
+  opened while the confirmation is visible. The confirmation lists the data
+  Privacy clears. Privacy leaves empty Firefox histories out of the results.
+- Duplicates can remove a copy again after you restore it with Undo. It counts
+  only the space sparse files occupy.
+- Storage refreshes the overview after a cleanup on another screen. Previously,
+  you had to rescan to update it.
+- System Data keeps a snapshot out of the list if you delete it during a
+  rescan. It displays partial size measurements as "at least".
+- System Junk counts a file hard-linked into two folders once.
+- Large Files keeps the warning when a timeout or an access error leaves the
+  results empty.
+- Monitor checks that the process you want to quit is still the one with that
+  PID. Sorting by memory includes the largest memory users even when they use
+  no CPU. Monitor counts network traffic on fast links. It shows mains power
+  when the Mac is plugged in and the battery is charged.
+- The sustained-temperature alert requires more than one hot reading. If macOS
+  fails to deliver an alert, the app can retry without waiting for the
   cooldown.
-- Menu bar: the sparkline resets when its metric changes.
-- Settings opened on its own now shows the result of its actions.
+- The menu bar resets the sparkline when you change its metric.
+- Settings shows the result of each action even when you open it on its own.
 
 ### Improved
 
-- Developer measures build folders in parallel within one time limit and keeps
-  the results it has when the limit is reached; a slow project no longer keeps
-  the screen scanning for minutes.
-- Large Files stops searching once it has enough results and skips excluded
-  folders without walking them, so it uses less memory on large disks.
-- Leftovers and Orphans no longer re-read every installed app for each file
-  they remove.
-- The monitor stops polling battery and GPU temperature sensors a Mac does not
-  have, and no longer leaks a system port reference on every sample.
+- Developer measures build folders in parallel under one time limit. When it
+  reaches the limit, it keeps the results it has, so a slow project cannot keep
+  the scan running for minutes.
+- Large Files stops once it has enough results and skips excluded folders
+  without scanning their contents. This reduces memory use on large disks.
+- Leftovers and Orphans reuse the installed-app inventory when they remove
+  files.
+- Monitor polls battery and GPU temperature sensors only if the Mac has them.
+  It releases a system port reference after each sample.
 
 ## 0.9.1 — 2026-11-18
 
 ### Fixed
 
-- Monitor: per-process CPU usage on Apple Silicon was about 40 times too low.
-- CPU and temperature alerts now repeat after their 30-minute pause while the
-  condition lasts, instead of staying silent for the rest of a long episode.
-- Startup: turning an agent on or off no longer rewrites its plist; only the
-  launchd override changes. Reading and removing login items no longer freezes
-  the window while System Events starts or asks for permission.
-- Uninstaller: data of another app whose bundle id extends the removed one's
-  stays when that app lives outside the Applications folders.
-- Large Files: a complete search no longer reports that it was cut short
-  because some folders were unreadable.
+- Monitor corrects per-process CPU usage on Apple Silicon. Earlier readings
+  were about 40 times too low.
+- CPU and temperature alerts repeat after their 30-minute pause if the
+  condition persists. Previously, they fired only once while the condition
+  lasted.
+- When you turn an agent on or off, Startup changes only the launchd override
+  and leaves the plist intact. You can use the window while System Events
+  starts or asks for permission to read or remove login items.
+- The Uninstaller keeps another app's data if its bundle ID extends the removed
+  app's ID and it lives outside the Applications folders.
+- Large Files reports a finished search as complete even if it could not read
+  some folders.
 
 ## 0.9.0 — 2026-11-18
 
-First public release, a beta. The DMG is not notarized yet; see the README for
-how to open it the first time.
+This is the first public release. It is a beta. The DMG is not notarized yet.
+See the README for first-launch instructions.
 
 ### System
 
-- Storage: used and free space with a breakdown by category, a 7- or 30-day
-  history of available space, folder browsing with cancellable measurements,
-  and mounted external volumes.
-- System Data: what Finder's "System Data" is made of, including local Time
-  Machine snapshots, which can be deleted.
-- Monitor: CPU, memory, GPU, network, disk and SSD health, temperatures, CPU
-  cluster frequencies, battery and a searchable process list, with optional
-  threshold alerts.
-- History of cleanups with a report per run; Security checks for FileVault,
-  firewall, Gatekeeper, SIP and other settings.
+- Storage shows used and free space by category and a 7- or 30-day history of
+  available space. You can browse folders, cancel measurements and view mounted
+  external volumes.
+- System Data lists what Finder groups under "System Data". You can delete
+  local Time Machine snapshots there.
+- Monitor shows CPU, memory, GPU, network, disk and SSD health, temperatures,
+  CPU cluster frequencies and battery status. It has a searchable process list
+  and optional threshold alerts.
+- History shows a report for each cleanup. Security checks FileVault, firewall,
+  Gatekeeper, SIP and other settings.
 
 ### Cleanup
 
-- Smart Cleanup: caches, logs, temporary files, old installers and the Trash,
-  with search, per-item selection and paths to always skip.
-- System Junk, Developer caches and project build artifacts, browser Privacy
-  data, Large Files and Duplicates, with saved search profiles.
-- Items in use or written to recently are skipped and shown with the reason.
+- Smart Cleanup lists caches, logs, temporary files, old installers and the
+  Trash. You can search, select individual items and set paths to always skip.
+- You can save search profiles for System Junk, Developer caches and project
+  build artifacts, browser Privacy data, Large Files and Duplicates.
+- The app skips items in use or written to recently and shows why.
 
 ### Uninstaller
 
-- Applications with their associated files, Leftovers of removed apps, orphaned
-  launch agents and helpers, and Startup items.
+- The Uninstaller section lists Applications with their associated files,
+  Leftovers of removed apps, orphaned launch agents and helpers, and Startup
+  items.
 
 ### Safety
 
-- Every delete is checked against a list of protected paths, and items that
-  changed since the scan are left alone.
-- Most cleanups move items to the Trash with Undo; permanent deletes always say
-  so in the confirmation, and a password is asked only where macOS requires it.
+- The app checks every deletion against a list of protected paths and skips
+  items that changed since the scan.
+- Most cleanups move items to the Trash with Undo. The confirmation identifies
+  permanent deletions. The app asks for a password only when macOS requires
+  one.
 
 ### Menu bar and Settings
 
-- A menu bar widget with eight layouts, light and dark themes, and English and
-  Russian, switchable without a restart.
+- The menu bar widget has eight layouts. You can switch between light and dark
+  themes and between English and Russian without restarting.

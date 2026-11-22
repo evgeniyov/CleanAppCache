@@ -1,12 +1,12 @@
 name: Feature request
-description: Suggest a change or a new capability.
+description: Suggest a change or a feature.
 labels: ["enhancement"]
 body:
   - type: textarea
     id: problem
     attributes:
       label: Problem
-      description: What are you trying to do, and what gets in the way today?
+      description: What are you trying to do, and what prevents you from doing it?
     validations:
       required: true
 
@@ -14,7 +14,7 @@ body:
     id: proposal
     attributes:
       label: Proposal
-      description: How you would like it to work. If it deletes files, say whether items should go to the Trash or be removed permanently.
+      description: Describe how the change should work. If it deletes files, say whether it should move them to the Trash or delete them permanently.
     validations:
       required: true
 
@@ -22,6 +22,6 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
-      description: Other approaches or workarounds you have tried.
+      description: Describe other approaches or workarounds you tried.
     validations:
       required: false
