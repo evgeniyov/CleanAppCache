@@ -20,16 +20,22 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
     let usedBytes: UInt64
     let categories: [Category]
     let enumerationFailed: Bool?
+    /// Paths that could not be read during the measurement. du counts a hard
+    /// link under the first path it can reach, so a change in this set can move
+    /// allocation between folders whose files did not change.
+    let unreadablePaths: [String]?
 
-    init(date: Date, usedBytes: UInt64, categories: [Category], enumerationFailed: Bool? = nil) {
+    init(date: Date, usedBytes: UInt64, categories: [Category], enumerationFailed: Bool? = nil,
+         unreadablePaths: [String]? = nil) {
         self.date = date
         self.usedBytes = usedBytes
         self.categories = categories
         self.enumerationFailed = enumerationFailed
+        self.unreadablePaths = unreadablePaths
     }
 
     private enum CodingKeys: String, CodingKey {
-        case date, usedBytes, categories, enumerationFailed
+        case date, usedBytes, categories, enumerationFailed, unreadablePaths
         // Written by builds that recorded only the ~/Library failure.
         case libraryEnumerationFailed
     }
@@ -41,6 +47,7 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
         categories = try values.decode([Category].self, forKey: .categories)
         enumerationFailed = try values.decodeIfPresent(Bool.self, forKey: .enumerationFailed)
             ?? values.decodeIfPresent(Bool.self, forKey: .libraryEnumerationFailed)
+        unreadablePaths = try values.decodeIfPresent([String].self, forKey: .unreadablePaths)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -49,6 +56,7 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
         try values.encode(usedBytes, forKey: .usedBytes)
         try values.encode(categories, forKey: .categories)
         try values.encodeIfPresent(enumerationFailed, forKey: .enumerationFailed)
+        try values.encodeIfPresent(unreadablePaths, forKey: .unreadablePaths)
     }
 
     init(date: Date, usedBytes: UInt64, breakdown: [StorageBreakdown]) {
@@ -81,8 +89,10 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
             return Category(key: StorageCategory.from(rawName: row.name).rawValue, bytes: row.bytes,
                             partial: row.isResidual || row.isPartial || !row.sizeKnown, members: members)
         }
+        let unreadable = Set(breakdown.flatMap { $0.accessIssues.map(\.path) })
         self.init(date: date, usedBytes: usedBytes, categories: categories,
-                  enumerationFailed: enumerationFailed ? true : nil)
+                  enumerationFailed: enumerationFailed ? true : nil,
+                  unreadablePaths: unreadable.isEmpty ? nil : unreadable.sorted())
     }
 
     static func addBytes(_ lhs: UInt64, _ rhs: UInt64) -> UInt64 {
@@ -204,6 +214,7 @@ struct StorageSnapshotComparison {
         // row, so either side's row layout is unreliable and no difference
         // between the two can be stated exactly.
         let incomplete = from.enumerationFailed == true || to.enumerationFailed == true
+            || Set(from.unreadablePaths ?? []) != Set(to.unreadablePaths ?? [])
         var rows: [Change] = []
         for category in Set(before.keys).union(after.keys) {
             let old = before[category]

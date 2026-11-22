@@ -221,6 +221,17 @@ final class StorageClassificationTests: XCTestCase {
             .init(key: StorageCategory.yourFolders.rawValue, bytes: 100_000_000, partial: false, members: [
                 .init(id: "/zone", name: "Zone", bytes: 100_000_000, partial: false)])])
         XCTAssertTrue(StorageSnapshotComparison(from: clean, to: flagged).changes.allSatisfy(\.uncertain))
+        // The same unreadable folders on both days keep exact figures; a
+        // change in them can move hard-linked allocation between folders.
+        let deniedBefore = StorageSnapshot(date: date, usedBytes: used, categories: clean.categories,
+                                           unreadablePaths: ["/home/Library/Containers"])
+        let deniedSame = StorageSnapshot(date: date.addingTimeInterval(60), usedBytes: used,
+                                         categories: flagged.categories, unreadablePaths: ["/home/Library/Containers"])
+        let deniedMore = StorageSnapshot(date: date.addingTimeInterval(60), usedBytes: used,
+                                         categories: flagged.categories,
+                                         unreadablePaths: ["/home/Archive/Private", "/home/Library/Containers"])
+        XCTAssertTrue(StorageSnapshotComparison(from: deniedBefore, to: deniedSame).changes.contains { !$0.uncertain })
+        XCTAssertTrue(StorageSnapshotComparison(from: deniedBefore, to: deniedMore).changes.allSatisfy(\.uncertain))
         let legacy = Data(#"{"date":0,"usedBytes":1,"categories":[],"libraryEnumerationFailed":true}"#.utf8)
         XCTAssertEqual(try JSONDecoder().decode(StorageSnapshot.self, from: legacy).enumerationFailed, true)
 
