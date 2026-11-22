@@ -6,6 +6,19 @@ GitHub Release description (`v1.0.0` and `v1.0` both match `## 1.0`).
 
 ## Unreleased
 
+## 0.9.4 — 2026-11-22
+
+### Added
+
+- Storage: "What changed" shows what grew or shrank since the previous
+  measurement, over 7 or over 30 days: the change in used space, what cleanups
+  freed or moved to the Trash in that period, and the folders and categories
+  that changed most. Items that could only be partly measured are marked as
+  uncertain instead of showing an exact figure.
+- The app measures the disk once a day in the background at low priority, so
+  the history fills without opening Storage. It skips Low Power Mode and a low
+  battery, and can be turned off in Settings.
+
 ## 0.9.3 — 2026-11-22
 
 ### Improved
