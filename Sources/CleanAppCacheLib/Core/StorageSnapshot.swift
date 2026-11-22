@@ -28,6 +28,29 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
         self.enumerationFailed = enumerationFailed
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case date, usedBytes, categories, enumerationFailed
+        // Written by builds that recorded only the ~/Library failure.
+        case libraryEnumerationFailed
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        date = try values.decode(Date.self, forKey: .date)
+        usedBytes = try values.decode(UInt64.self, forKey: .usedBytes)
+        categories = try values.decode([Category].self, forKey: .categories)
+        enumerationFailed = try values.decodeIfPresent(Bool.self, forKey: .enumerationFailed)
+            ?? values.decodeIfPresent(Bool.self, forKey: .libraryEnumerationFailed)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(date, forKey: .date)
+        try values.encode(usedBytes, forKey: .usedBytes)
+        try values.encode(categories, forKey: .categories)
+        try values.encodeIfPresent(enumerationFailed, forKey: .enumerationFailed)
+    }
+
     init(date: Date, usedBytes: UInt64, breakdown: [StorageBreakdown]) {
         let enumerationFailed = breakdown.contains { row in
             row.accessIssues.contains { $0.enumerationFailed == true }
@@ -209,8 +232,8 @@ struct StorageSnapshotComparison {
                 }
                 if let change = Self.change(category: category, member: right ?? left,
                                             before: left?.bytes, after: right?.bytes,
-                                            beforePartial: (left?.partial ?? oldPartial) || (isVolumeGroup && oldPartial),
-                                            afterPartial: (right?.partial ?? newPartial) || (isVolumeGroup && newPartial)) {
+                                            beforePartial: (left?.partial ?? oldPartial) || incomplete || (isVolumeGroup && oldPartial),
+                                            afterPartial: (right?.partial ?? newPartial) || incomplete || (isVolumeGroup && newPartial)) {
                     rows.append(change)
                 }
             }

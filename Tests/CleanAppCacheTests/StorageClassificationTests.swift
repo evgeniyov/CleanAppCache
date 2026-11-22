@@ -213,6 +213,17 @@ final class StorageClassificationTests: XCTestCase {
                       "a fallback layout cannot be compared exactly in either direction")
         XCTAssertTrue(StorageSnapshotComparison(from: homeSnapshot, to: original).changes.allSatisfy(\.uncertain))
 
+        // A complete member row cannot outweigh a snapshot whose layout fell back.
+        let flagged = StorageSnapshot(date: date, usedBytes: used, categories: [
+            .init(key: StorageCategory.yourFolders.rawValue, bytes: 400_000_000, partial: false, members: [
+                .init(id: "/zone", name: "Zone", bytes: 400_000_000, partial: false)])], enumerationFailed: true)
+        let clean = StorageSnapshot(date: date.addingTimeInterval(-60), usedBytes: used, categories: [
+            .init(key: StorageCategory.yourFolders.rawValue, bytes: 100_000_000, partial: false, members: [
+                .init(id: "/zone", name: "Zone", bytes: 100_000_000, partial: false)])])
+        XCTAssertTrue(StorageSnapshotComparison(from: clean, to: flagged).changes.allSatisfy(\.uncertain))
+        let legacy = Data(#"{"date":0,"usedBytes":1,"categories":[],"libraryEnumerationFailed":true}"#.utf8)
+        XCTAssertEqual(try JSONDecoder().decode(StorageSnapshot.self, from: legacy).enumerationFailed, true)
+
         // A folder that cannot be checked is not a folder that is gone.
         let locked = scratch.appendingPathComponent("locked")
         let hidden = locked.appendingPathComponent("project")
