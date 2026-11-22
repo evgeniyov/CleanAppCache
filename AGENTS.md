@@ -211,15 +211,19 @@ C wrapper, a command assembled from pieces) is not detected, so review for it.
   asked" or narrate how the change was produced.
 
 ## Workflow
-- A finished change is committed and pushed to `master` as soon as
-  `Scripts/verify.sh` passes; nothing verified stays only on the local
-  machine. Work that is not finished or not green is not pushed.
-- A multi-step change that cannot stay green between its steps lives on a
-  branch and is fast-forwarded into `master` once it verifies.
-- After a push, CI is checked (`gh run list`, `gh run watch <id>`). CI uses
-  the `macos-15` runner's default Xcode, whose older Swift compiler rejects
-  some code the local toolchain accepts. Fix a red CI before pushing anything
-  else.
+- GitHub Actions is the full check; the repository is public, so its macOS
+  runners cost nothing. Locally, run `swift build`, the test suites for the
+  area you changed and `Scripts/check_invariants.sh`, then push the commits to
+  a `ci/<topic>` branch, which runs `ci.yml` (`gh run list --branch
+  ci/<topic>`, `gh run watch <id>`). Once it is green, fast-forward `master`
+  to the branch, push `master` and delete the branch. `Scripts/verify.sh`
+  runs the same checks locally when CI is unavailable.
+- CI uses the `macos-15` runner's default Xcode, whose older Swift compiler
+  rejects some code the local toolchain accepts, so a change is not finished
+  until its branch is green there. A red CI on `master` is fixed before
+  anything else is pushed. Work that is not finished is not merged.
+- A release DMG is still built locally with `python3 build.py` from the
+  tagged commit, so the installed app matches GitHub.
 - `master` is never force-pushed and published history is not rewritten.
 - Pushing a change under `.github/workflows/` needs a GitHub token with the
   `workflow` scope (`gh auth refresh -h github.com -s workflow`).

@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    # ci/** branches carry a change that has to pass here before it is
+    # fast-forwarded into master.
+    branches: [main, master, 'ci/**']
   pull_request:
   # Manual run from the Actions page: builds the DMG and uploads it as an artifact.
   workflow_dispatch:
