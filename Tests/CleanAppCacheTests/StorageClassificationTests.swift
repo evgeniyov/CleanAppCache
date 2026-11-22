@@ -232,6 +232,13 @@ final class StorageClassificationTests: XCTestCase {
                                          unreadablePaths: ["/home/Archive/Private", "/home/Library/Containers"])
         XCTAssertTrue(StorageSnapshotComparison(from: deniedBefore, to: deniedSame).changes.contains { !$0.uncertain })
         XCTAssertTrue(StorageSnapshotComparison(from: deniedBefore, to: deniedMore).changes.allSatisfy(\.uncertain))
+        let partialLegacy = StorageSnapshot(date: date, usedBytes: used, categories: [
+            .init(key: StorageCategory.yourFolders.rawValue, bytes: 100_000_000, partial: true, members: [
+                .init(id: "/zone", name: "Zone", bytes: 100_000_000, partial: false)])])
+        let readable = StorageSnapshot(date: date.addingTimeInterval(60), usedBytes: used,
+                                       categories: flagged.categories)
+        XCTAssertNil(partialLegacy.knownUnreadable)
+        XCTAssertTrue(StorageSnapshotComparison(from: partialLegacy, to: readable).changes.allSatisfy(\.uncertain))
         let legacy = Data(#"{"date":0,"usedBytes":1,"categories":[],"libraryEnumerationFailed":true}"#.utf8)
         XCTAssertEqual(try JSONDecoder().decode(StorageSnapshot.self, from: legacy).enumerationFailed, true)
 

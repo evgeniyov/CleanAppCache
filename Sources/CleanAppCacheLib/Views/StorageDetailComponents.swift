@@ -257,7 +257,7 @@ struct StorageDetailPanel: View {
         if item.hasSharedAllocation {
             note(loc.s("detail.sharedAllocation"))
         }
-        ForEach(Array(item.accessIssues.enumerated()), id: \.offset) { _, issue in
+        ForEach(Array(item.accessIssues.prefix(8).enumerated()), id: \.offset) { _, issue in
             note(loc.s(issue.reasonKey) + "\n" + issue.path, color: Palette.warningText)
                 .textSelection(.enabled)
         }

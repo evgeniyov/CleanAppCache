@@ -95,6 +95,13 @@ struct StorageSnapshot: Codable, Equatable, Sendable {
                   unreadablePaths: unreadable.isEmpty ? nil : unreadable.sorted())
     }
 
+    /// The unreadable paths, or nil when a snapshot that predates the list was
+    /// partial and so its set is unknown.
+    var knownUnreadable: Set<String>? {
+        if let unreadablePaths { return Set(unreadablePaths) }
+        return categories.contains { $0.partial && $0.key != StorageCategory.other.rawValue } ? nil : []
+    }
+
     static func addBytes(_ lhs: UInt64, _ rhs: UInt64) -> UInt64 {
         let (sum, overflow) = lhs.addingReportingOverflow(rhs)
         return overflow ? .max : sum
@@ -214,7 +221,8 @@ struct StorageSnapshotComparison {
         // row, so either side's row layout is unreliable and no difference
         // between the two can be stated exactly.
         let incomplete = from.enumerationFailed == true || to.enumerationFailed == true
-            || Set(from.unreadablePaths ?? []) != Set(to.unreadablePaths ?? [])
+            || from.knownUnreadable == nil || to.knownUnreadable == nil
+            || from.knownUnreadable != to.knownUnreadable
         var rows: [Change] = []
         for category in Set(before.keys).union(after.keys) {
             let old = before[category]

@@ -207,20 +207,20 @@ enum StorageClassification {
                 }
                 let reason = message == "Permission denied" || message == "Operation not permitted"
                     ? "detail.accessDenied" : "detail.unavailable"
-                let firstForRoot = reportedRoots.insert(root.path).inserted
-                // Always keep evidence of a denial even when an earlier error
-                // on the same root was of another kind.
-                if firstForRoot || (reason == "detail.accessDenied" && !result.issues.contains {
-                    $0.reasonKey == reason && contains(root.path, path: $0.path)
-                }) {
-                    result.issues.append(.init(path: path, reasonKey: reason))
-                }
+                reportedRoots.insert(root.path)
+                // Keep every unreadable path: snapshots compare the whole set,
+                // because du reattributes a hard link when any of them changes.
+                result.issues.append(.init(path: path, reasonKey: reason))
             }
             unmatchedDiagnostic = unmatchedDiagnostic || response.diagnosticsTruncated ||
                 (!response.succeeded && !response.timedOut && response.diagnostics.isEmpty)
         }
         for root in roots where !reportedRoots.contains(root.path) && (result.bytes[root.path] == nil || unmatchedDiagnostic) {
             result.issues.append(.init(path: root.path, reasonKey: result.timeLimited ? "detail.timeBudget" : "detail.unavailable"))
+        }
+        if unmatchedDiagnostic, let first = roots.first {
+            // The list of unreadable paths is incomplete, so it cannot be compared.
+            result.issues.append(.init(path: first.path, reasonKey: "detail.unavailable", enumerationFailed: true))
         }
         return result
     }
